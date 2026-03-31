@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-// ─── Storage (localStorage) ───────────────────────────────────────────────────
+// ─── Storage ──────────────────────────────────────────────────────────────────
 const STORE = {
   get(key) {
     try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; }
@@ -16,6 +16,23 @@ const uid = () => Math.random().toString(36).slice(2, 10);
 const now = () => new Date().toISOString();
 const fmtDate = (iso) => new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+const isoDay = (iso) => iso.slice(0, 10);
+
+// ─── Grupos musculares ────────────────────────────────────────────────────────
+const GROUPS = [
+  { id: "peito",    label: "Peito",       emoji: "🫁" },
+  { id: "costas",   label: "Costas",      emoji: "🔙" },
+  { id: "pernas",   label: "Pernas",      emoji: "🦵" },
+  { id: "ombros",   label: "Ombros",      emoji: "🏋️" },
+  { id: "biceps",   label: "Bíceps",      emoji: "💪" },
+  { id: "triceps",  label: "Tríceps",     emoji: "💪" },
+  { id: "abdomen",  label: "Abdômen",     emoji: "🎯" },
+  { id: "gluteos",  label: "Glúteos",     emoji: "🍑" },
+  { id: "cardio",   label: "Cardio",      emoji: "❤️" },
+  { id: "outro",    label: "Outro",       emoji: "⚡" },
+];
+const groupLabel = (id) => GROUPS.find(g => g.id === id)?.label || id;
+const groupEmoji = (id) => GROUPS.find(g => g.id === id)?.emoji || "⚡";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const Icon = ({ name, size = 22 }) => {
@@ -29,6 +46,9 @@ const Icon = ({ name, size = 22 }) => {
     history: "M12 8v4l3 3M3.05 11a9 9 0 1 0 .5-3",
     save: "M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8",
     chart: "M18 20V10M12 20V4M6 20v-6",
+    download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3",
+    calendar: "M3 4h18v18H3zM16 2v4M8 2v4M3 10h18",
+    filter: "M22 3H2l8 9.46V19l4 2V12.46L22 3z",
   };
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -37,125 +57,63 @@ const Icon = ({ name, size = 22 }) => {
   );
 };
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── CSS ──────────────────────────────────────────────────────────────────────
 const css = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap');
-
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
-    --bg: #0a0a0f;
-    --surface: #13131a;
-    --surface2: #1c1c26;
-    --border: #2a2a38;
-    --accent: #7c6aff;
-    --accent2: #a78bfa;
-    --green: #34d399;
-    --red: #f87171;
-    --yellow: #fbbf24;
-    --text: #f0f0f5;
-    --text2: #9090aa;
-    --text3: #5a5a72;
-    --radius: 14px;
-    --radius-sm: 8px;
-    --transition: 0.18s ease;
+    --bg: #0a0a0f; --surface: #13131a; --surface2: #1c1c26; --border: #2a2a38;
+    --accent: #7c6aff; --accent2: #a78bfa; --green: #34d399; --red: #f87171;
+    --yellow: #fbbf24; --text: #f0f0f5; --text2: #9090aa; --text3: #5a5a72;
+    --radius: 14px; --radius-sm: 8px; --transition: 0.18s ease;
   }
-
-  html, body, #root {
-    height: 100%;
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .app {
-    max-width: 440px;
-    margin: 0 auto;
-    min-height: 100vh;
-    min-height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    padding-bottom: 80px;
-  }
-
+  html, body, #root { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+  .app { max-width: 440px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; padding-bottom: 80px; }
   label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
   .field { display: flex; flex-direction: column; gap: 6px; }
-  input, select {
-    background: var(--bg);
-    border: 1.5px solid var(--border);
-    border-radius: var(--radius-sm);
-    padding: 12px 14px;
-    color: var(--text);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 16px;
-    width: 100%;
-    outline: none;
-    transition: border-color var(--transition);
-    -webkit-appearance: none;
-  }
+  input, select { background: var(--bg); border: 1.5px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 16px; width: 100%; outline: none; transition: border-color var(--transition); -webkit-appearance: none; }
   input:focus, select:focus { border-color: var(--accent); }
   input::placeholder { color: var(--text3); }
   select option { background: var(--surface); }
-
-  .btn {
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    padding: 14px 20px; border-radius: var(--radius-sm);
-    font-size: 15px; font-weight: 600; cursor: pointer; border: none;
-    transition: all var(--transition); width: 100%;
-    font-family: 'DM Sans', sans-serif;
-    -webkit-tap-highlight-color: transparent;
-  }
+  .btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 20px; border-radius: var(--radius-sm); font-size: 15px; font-weight: 600; cursor: pointer; border: none; transition: all var(--transition); width: 100%; font-family: 'DM Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
   .btn-primary { background: var(--accent); color: white; }
   .btn-primary:active { opacity: 0.85; transform: scale(0.98); }
   .btn-ghost { background: var(--surface2); color: var(--text2); }
   .btn-ghost:active { background: var(--border); }
   .btn-danger { background: rgba(248,113,113,0.12); color: var(--red); }
   .btn-danger:active { background: rgba(248,113,113,0.22); }
+  .btn-green { background: rgba(52,211,153,0.15); color: var(--green); }
   .btn-sm { padding: 8px 14px; font-size: 13px; border-radius: var(--radius-sm); width: auto; }
   .btn-icon { width: 36px; height: 36px; padding: 0; border-radius: var(--radius-sm); flex-shrink: 0; }
-
-  .header {
-    padding: 52px 20px 14px;
-    border-bottom: 1px solid var(--border);
-    position: sticky; top: 0;
-    background: var(--bg); z-index: 10;
-    display: flex; align-items: center; gap: 10px;
-  }
-  .header-icon {
-    width: 32px; height: 32px; border-radius: 9px;
-    background: var(--accent); display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; box-shadow: 0 0 16px rgba(124,106,255,0.35);
-  }
-  .header-title { font-size: 18px; font-weight: 700; }
-
-  .bottom-nav {
-    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 440px;
-    background: var(--surface); border-top: 1px solid var(--border);
-    display: flex; z-index: 20;
-    padding-bottom: env(safe-area-inset-bottom);
-  }
-  .nav-item {
-    flex: 1; display: flex; flex-direction: column; align-items: center;
-    justify-content: center; padding: 10px 4px 14px; gap: 4px;
-    cursor: pointer; border: none; background: transparent;
-    color: var(--text3); font-size: 11px; font-weight: 500;
-    font-family: 'DM Sans', sans-serif; transition: color var(--transition);
-    -webkit-tap-highlight-color: transparent;
-  }
+  .header { padding: 52px 20px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 10; display: flex; align-items: center; gap: 10px; }
+  .header-icon { width: 32px; height: 32px; border-radius: 9px; background: var(--accent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 0 16px rgba(124,106,255,0.35); }
+  .header-title { font-size: 18px; font-weight: 700; flex: 1; }
+  .logo-wrap { display: flex; align-items: center; gap: 10px; flex: 1; }
+  .logo-icon { width: 36px; height: 36px; border-radius: 10px; background: var(--accent); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(124,106,255,0.45); flex-shrink: 0; }
+  .logo-text { display: flex; flex-direction: column; line-height: 1; }
+  .logo-name { font-size: 22px; font-weight: 800; letter-spacing: -1px; background: linear-gradient(90deg, #fff 0%, var(--accent2) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .logo-tagline { font-size: 11px; color: var(--text3); font-weight: 500; margin-top: 2px; }
+  .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 440px; background: var(--surface); border-top: 1px solid var(--border); display: flex; z-index: 20; padding-bottom: env(safe-area-inset-bottom); }
+  .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 4px 14px; gap: 4px; cursor: pointer; border: none; background: transparent; color: var(--text3); font-size: 11px; font-weight: 500; font-family: 'DM Sans', sans-serif; transition: color var(--transition); -webkit-tap-highlight-color: transparent; }
   .nav-item.active { color: var(--accent); }
-
   .page { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
-
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 14px; }
 
+  /* grupos */
+  .group-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .group-tabs::-webkit-scrollbar { display: none; }
+  .group-tab { flex-shrink: 0; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--border); background: transparent; color: var(--text2); font-family: 'DM Sans', sans-serif; transition: all var(--transition); white-space: nowrap; }
+  .group-tab.active { background: var(--accent); border-color: var(--accent); color: white; }
+  .group-badge { display: inline-flex; align-items: center; gap: 4px; background: var(--surface2); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 600; color: var(--text2); }
+
+  /* exercise */
   .exercise-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .exercise-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card-actions { display: flex; gap: 8px; flex-shrink: 0; }
   .inline-edit { display: flex; gap: 8px; flex: 1; }
   .inline-edit input { flex: 1; }
 
+  /* log */
   .log-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
   .log-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
   .log-exercise { font-size: 15px; font-weight: 600; }
@@ -164,6 +122,11 @@ const css = `
   .log-badge { background: var(--surface2); border-radius: 6px; padding: 5px 10px; font-size: 13px; font-weight: 500; font-family: 'DM Mono', monospace; }
   .log-badge.green { color: var(--green); }
 
+  /* day group */
+  .day-group { display: flex; flex-direction: column; gap: 10px; }
+  .day-label { font-size: 13px; font-weight: 700; color: var(--accent2); padding: 4px 0; }
+
+  /* stats */
   .stat-row { display: flex; gap: 10px; }
   .stat-chip { flex: 1; background: var(--surface2); border-radius: var(--radius-sm); padding: 12px; display: flex; flex-direction: column; gap: 4px; }
   .stat-chip .label { font-size: 11px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -172,8 +135,9 @@ const css = `
   .val.green { color: var(--green); }
   .val.yellow { color: var(--yellow); }
 
+  /* progress */
   .progress-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-  .progress-card-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 15px; font-weight: 600; }
+  .progress-card-header { padding: 14px 16px; border-bottom: 1px solid var(--border); font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
   .progress-card-body { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
   .timeline { display: flex; flex-direction: column; gap: 6px; max-height: 160px; overflow-y: auto; }
   .timeline::-webkit-scrollbar { width: 3px; }
@@ -183,30 +147,27 @@ const css = `
   .timeline-val { font-family: 'DM Mono', monospace; font-weight: 500; }
   .pr-badge { color: var(--yellow); font-size: 10px; font-weight: 700; background: rgba(251,191,36,0.12); padding: 2px 6px; border-radius: 4px; margin-left: 6px; }
 
+  /* misc */
   .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); }
   .divider { height: 1px; background: var(--border); }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .scroll-list { display: flex; flex-direction: column; gap: 10px; }
   .empty { text-align: center; padding: 48px 24px; color: var(--text3); display: flex; flex-direction: column; align-items: center; gap: 12px; }
   .empty p { font-size: 14px; line-height: 1.6; }
-
-  .toast {
-    position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
-    background: var(--green); color: #0a0a0f;
-    padding: 12px 20px; border-radius: var(--radius-sm);
-    font-size: 14px; font-weight: 600; z-index: 999;
-    box-shadow: 0 4px 24px rgba(52,211,153,0.3);
-    animation: slideDown 0.22s ease; white-space: nowrap;
-  }
+  .toast { position: fixed; top: 60px; left: 50%; transform: translateX(-50%); background: var(--green); color: #0a0a0f; padding: 12px 20px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; z-index: 999; box-shadow: 0 4px 24px rgba(52,211,153,0.3); animation: slideDown 0.22s ease; white-space: nowrap; }
   .toast.error { background: var(--red); color: white; }
   @keyframes slideDown { from { opacity:0; transform: translateX(-50%) translateY(-10px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
-
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 50; display: flex; align-items: flex-end; justify-content: center; animation: fadeIn 0.2s ease; }
   .modal { background: var(--surface); border-radius: 20px 20px 0 0; padding: 24px 20px 40px; width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 14px; animation: slideUp 0.22s ease; padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
   .modal-title { font-size: 17px; font-weight: 700; }
   .modal-sub { font-size: 14px; color: var(--text2); }
   @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
   @keyframes slideUp { from { transform: translateY(30px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+
+  /* date filter */
+  .date-filter { display: flex; gap: 8px; align-items: center; }
+  .date-filter input[type=date] { flex: 1; font-size: 14px; padding: 10px 12px; }
+  .date-filter input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.6); }
 `;
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -227,24 +188,33 @@ export default function App() {
   const saveExercises = (list) => { setExercises(list); STORE.set("exercises", list); };
   const saveLogs = (list) => { setLogs(list); STORE.set("logs", list); };
 
-  const addExercise = (name) => { saveExercises([...exercises, { id: uid(), name, createdAt: now() }]); notify("Exercício adicionado!"); };
-  const editExercise = (id, name) => { saveExercises(exercises.map(e => e.id === id ? { ...e, name } : e)); notify("Nome atualizado!"); };
+  const addExercise = (name, group) => { saveExercises([...exercises, { id: uid(), name, group, createdAt: now() }]); notify("Exercício adicionado!"); };
+  const editExercise = (id, name, group) => { saveExercises(exercises.map(e => e.id === id ? { ...e, name, group } : e)); notify("Atualizado!"); };
   const deleteExercise = (id) => { saveExercises(exercises.filter(e => e.id !== id)); notify("Exercício removido"); };
   const addLog = (entry) => { saveLogs([{ id: uid(), ...entry, createdAt: now() }, ...logs]); notify("Treino registrado! 🔥"); };
   const deleteLog = (id) => { saveLogs(logs.filter(l => l.id !== id)); notify("Registro removido"); };
+
+  const titles = { exercises: "Exercícios", log: "Registrar Treino", history: "Histórico", progress: "Evolução" };
 
   return (
     <>
       <style>{css}</style>
       <div className="app">
         <div className="header">
-          <div className="header-icon"><Icon name="dumbbell" size={18} /></div>
-          <span className="header-title">
-            {tab === "exercises" && "Exercícios"}
-            {tab === "log" && "Registrar Treino"}
-            {tab === "history" && "Histórico"}
-            {tab === "progress" && "Evolução"}
-          </span>
+          {tab === "exercises" ? (
+            <div className="logo-wrap">
+              <div className="logo-icon"><Icon name="dumbbell" size={20} /></div>
+              <div className="logo-text">
+                <span className="logo-name">FitLog</span>
+                <span className="logo-tagline">Acompanhe sua evolução 💪</span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="header-icon"><Icon name="dumbbell" size={18} /></div>
+              <span className="header-title">{titles[tab]}</span>
+            </>
+          )}
         </div>
 
         {tab === "exercises" && <ExercisesPage exercises={exercises} onAdd={addExercise} onEdit={editExercise} onDelete={deleteExercise} />}
@@ -274,42 +244,83 @@ export default function App() {
 // ─── Exercises Page ───────────────────────────────────────────────────────────
 function ExercisesPage({ exercises, onAdd, onEdit, onDelete }) {
   const [newName, setNewName] = useState("");
+  const [newGroup, setNewGroup] = useState("peito");
   const [editId, setEditId] = useState(null);
   const [editName, setEditName] = useState("");
+  const [editGroup, setEditGroup] = useState("peito");
   const [confirm, setConfirm] = useState(null);
+  const [filterGroup, setFilterGroup] = useState("todos");
 
-  const handleAdd = () => { if (!newName.trim()) return; onAdd(newName.trim()); setNewName(""); };
-  const handleEdit = (id) => { if (!editName.trim()) return; onEdit(id, editName.trim()); setEditId(null); };
+  const handleAdd = () => {
+    if (!newName.trim()) return;
+    onAdd(newName.trim(), newGroup);
+    setNewName("");
+  };
+
+  const handleEdit = (id) => {
+    if (!editName.trim()) return;
+    onEdit(id, editName.trim(), editGroup);
+    setEditId(null);
+  };
+
+  const startEdit = (ex) => { setEditId(ex.id); setEditName(ex.name); setEditGroup(ex.group || "outro"); };
+
+  const filtered = filterGroup === "todos" ? exercises : exercises.filter(e => e.group === filterGroup);
+
+  // grupos que têm exercícios
+  const usedGroups = ["todos", ...GROUPS.map(g => g.id).filter(id => exercises.some(e => e.group === id))];
 
   return (
     <div className="page">
       <div className="card">
         <div className="field"><label>Novo exercício</label></div>
+        <div className="field">
+          <select value={newGroup} onChange={e => setNewGroup(e.target.value)}>
+            {GROUPS.map(g => <option key={g.id} value={g.id}>{g.emoji} {g.label}</option>)}
+          </select>
+        </div>
         <div style={{ display: "flex", gap: 8 }}>
           <input placeholder="ex: Supino reto, Agachamento..." value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAdd()} />
           <button className="btn btn-primary btn-icon" onClick={handleAdd} style={{ width: 48, flexShrink: 0 }}><Icon name="plus" size={20} /></button>
         </div>
       </div>
 
-      <p className="section-title">{exercises.length} exercício{exercises.length !== 1 ? "s" : ""}</p>
+      {/* filtro por grupo */}
+      <div className="group-tabs">
+        {usedGroups.map(id => (
+          <button key={id} className={`group-tab${filterGroup === id ? " active" : ""}`} onClick={() => setFilterGroup(id)}>
+            {id === "todos" ? "Todos" : `${groupEmoji(id)} ${groupLabel(id)}`}
+          </button>
+        ))}
+      </div>
 
-      {exercises.length === 0 ? (
+      <p className="section-title">{filtered.length} exercício{filtered.length !== 1 ? "s" : ""}</p>
+
+      {filtered.length === 0 ? (
         <div className="empty"><Icon name="dumbbell" size={40} /><p>Nenhum exercício ainda.<br />Adicione o primeiro acima!</p></div>
       ) : (
         <div className="scroll-list">
-          {exercises.map(ex => (
+          {filtered.map(ex => (
             <div key={ex.id} className="exercise-item">
               {editId === ex.id ? (
-                <div className="inline-edit">
-                  <input value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => e.key === "Enter" && handleEdit(ex.id)} autoFocus />
-                  <button className="btn btn-primary btn-icon btn-sm" onClick={() => handleEdit(ex.id)}><Icon name="check" size={16} /></button>
-                  <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setEditId(null)}><Icon name="x" size={16} /></button>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <select value={editGroup} onChange={e => setEditGroup(e.target.value)}>
+                    {GROUPS.map(g => <option key={g.id} value={g.id}>{g.emoji} {g.label}</option>)}
+                  </select>
+                  <div className="inline-edit">
+                    <input value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => e.key === "Enter" && handleEdit(ex.id)} autoFocus />
+                    <button className="btn btn-primary btn-icon btn-sm" onClick={() => handleEdit(ex.id)}><Icon name="check" size={16} /></button>
+                    <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setEditId(null)}><Icon name="x" size={16} /></button>
+                  </div>
                 </div>
               ) : (
                 <>
-                  <div style={{ flex: 1, minWidth: 0 }}><div className="exercise-name">{ex.name}</div></div>
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div className="exercise-name">{ex.name}</div>
+                    {ex.group && <span className="group-badge">{groupEmoji(ex.group)} {groupLabel(ex.group)}</span>}
+                  </div>
                   <div className="card-actions">
-                    <button className="btn btn-ghost btn-icon btn-sm" onClick={() => { setEditId(ex.id); setEditName(ex.name); }}><Icon name="edit" size={15} /></button>
+                    <button className="btn btn-ghost btn-icon btn-sm" onClick={() => startEdit(ex)}><Icon name="edit" size={15} /></button>
                     <button className="btn btn-danger btn-icon btn-sm" onClick={() => setConfirm(ex.id)}><Icon name="trash" size={15} /></button>
                   </div>
                 </>
@@ -335,6 +346,7 @@ function ExercisesPage({ exercises, onAdd, onEdit, onDelete }) {
 
 // ─── Log Page ─────────────────────────────────────────────────────────────────
 function LogPage({ exercises, onAdd }) {
+  const [filterGroup, setFilterGroup] = useState("todos");
   const [exId, setExId] = useState("");
   const [load, setLoad] = useState("");
   const [sets, setSets] = useState("3");
@@ -342,12 +354,15 @@ function LogPage({ exercises, onAdd }) {
   const [note, setNote] = useState("");
   const [done, setDone] = useState(false);
 
+  const filtered = filterGroup === "todos" ? exercises : exercises.filter(e => e.group === filterGroup);
+  const usedGroups = ["todos", ...GROUPS.map(g => g.id).filter(id => exercises.some(e => e.group === id))];
+
   const submit = () => {
     if (!exId || !load) return;
     onAdd({ exerciseId: exId, load: parseFloat(load), sets: parseInt(sets), reps: parseInt(reps), note });
     setDone(true);
     setTimeout(() => setDone(false), 1800);
-    setLoad(""); setNote("");
+    setLoad(""); setNote(""); setExId("");
   };
 
   if (exercises.length === 0) return (
@@ -358,12 +373,21 @@ function LogPage({ exercises, onAdd }) {
 
   return (
     <div className="page">
+      {/* filtro grupo para facilitar seleção */}
+      <div className="group-tabs">
+        {usedGroups.map(id => (
+          <button key={id} className={`group-tab${filterGroup === id ? " active" : ""}`} onClick={() => { setFilterGroup(id); setExId(""); }}>
+            {id === "todos" ? "Todos" : `${groupEmoji(id)} ${groupLabel(id)}`}
+          </button>
+        ))}
+      </div>
+
       <div className="card">
         <div className="field">
           <label>Exercício</label>
           <select value={exId} onChange={e => setExId(e.target.value)}>
             <option value="">— Selecione —</option>
-            {exercises.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
+            {filtered.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
           </select>
         </div>
         <div className="field">
@@ -400,34 +424,100 @@ function LogPage({ exercises, onAdd }) {
 // ─── History Page ─────────────────────────────────────────────────────────────
 function HistoryPage({ logs, exercises, onDelete }) {
   const [confirm, setConfirm] = useState(null);
-  const exMap = Object.fromEntries(exercises.map(e => [e.id, e.name]));
+  const [dateFilter, setDateFilter] = useState("");
+  const exMap = Object.fromEntries(exercises.map(e => [e.id, { name: e.name, group: e.group }]));
+
+  // filtrar por data
+  const filtered = dateFilter
+    ? logs.filter(l => isoDay(l.createdAt) === dateFilter)
+    : logs;
+
+  // agrupar por dia
+  const byDay = {};
+  filtered.forEach(l => {
+    const day = isoDay(l.createdAt);
+    if (!byDay[day]) byDay[day] = [];
+    byDay[day].push(l);
+  });
+  const days = Object.keys(byDay).sort((a, b) => b.localeCompare(a));
+
+  // exportar CSV
+  const exportCSV = () => {
+    const rows = [["Data", "Hora", "Exercício", "Grupo", "Carga (kg)", "Séries", "Repetições", "Observação"]];
+    logs.forEach(l => {
+      const ex = exMap[l.exerciseId];
+      rows.push([
+        fmtDate(l.createdAt),
+        fmtTime(l.createdAt),
+        ex?.name || "Removido",
+        ex?.group ? groupLabel(ex.group) : "",
+        l.load,
+        l.sets,
+        l.reps,
+        l.note || "",
+      ]);
+    });
+    const csv = rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "fitlog_historico.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="page">
-      <p className="section-title">{logs.length} registro{logs.length !== 1 ? "s" : ""}</p>
-      {logs.length === 0 ? (
-        <div className="empty"><Icon name="history" size={40} /><p>Nenhum treino registrado ainda.<br />Use a aba "Registrar" para começar!</p></div>
-      ) : (
-        <div className="scroll-list">
-          {logs.map(log => (
-            <div key={log.id} className="log-item">
-              <div className="log-header">
-                <div className="log-exercise">{exMap[log.exerciseId] || "Exercício removido"}</div>
-                <div className="log-date">{fmtDate(log.createdAt)}<br />{fmtTime(log.createdAt)}</div>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div className="log-stats">
-                  <span className="log-badge green">{log.load} kg</span>
-                  <span className="log-badge">{log.sets} séries</span>
-                  <span className="log-badge">{log.reps} reps</span>
-                </div>
-                <button className="btn btn-danger btn-icon btn-sm" onClick={() => setConfirm(log.id)}><Icon name="trash" size={14} /></button>
-              </div>
-              {log.note && <p style={{ fontSize: 12, color: "var(--text2)", marginTop: 8 }}>📝 {log.note}</p>}
-            </div>
-          ))}
+      {/* filtro de data */}
+      <div className="card" style={{ gap: 10 }}>
+        <div className="date-filter">
+          <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} />
+          {dateFilter && <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setDateFilter("")}><Icon name="x" size={16} /></button>}
         </div>
+        <p style={{ fontSize: 12, color: "var(--text3)" }}>
+          {dateFilter ? `${filtered.length} registro(s) em ${fmtDate(dateFilter + "T12:00:00")}` : `${logs.length} registros no total`}
+        </p>
+      </div>
+
+      {/* botão exportar */}
+      {logs.length > 0 && (
+        <button className="btn btn-green" onClick={exportCSV}>
+          <Icon name="download" size={16} /> Exportar planilha (.csv)
+        </button>
       )}
+
+      {filtered.length === 0 ? (
+        <div className="empty"><Icon name="history" size={40} /><p>{dateFilter ? "Nenhum treino nessa data." : "Nenhum treino registrado ainda."}</p></div>
+      ) : (
+        days.map(day => (
+          <div key={day} className="day-group">
+            <p className="day-label">📅 {fmtDate(day + "T12:00:00")}</p>
+            {byDay[day].map(log => {
+              const ex = exMap[log.exerciseId];
+              return (
+                <div key={log.id} className="log-item">
+                  <div className="log-header">
+                    <div>
+                      <div className="log-exercise">{ex?.name || "Exercício removido"}</div>
+                      {ex?.group && <span className="group-badge" style={{ marginTop: 4 }}>{groupEmoji(ex.group)} {groupLabel(ex.group)}</span>}
+                    </div>
+                    <div className="log-date">{fmtTime(log.createdAt)}</div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div className="log-stats">
+                      <span className="log-badge green">{log.load} kg</span>
+                      <span className="log-badge">{log.sets} séries</span>
+                      <span className="log-badge">{log.reps} reps</span>
+                    </div>
+                    <button className="btn btn-danger btn-icon btn-sm" onClick={() => setConfirm(log.id)}><Icon name="trash" size={14} /></button>
+                  </div>
+                  {log.note && <p style={{ fontSize: 12, color: "var(--text2)", marginTop: 8 }}>📝 {log.note}</p>}
+                </div>
+              );
+            })}
+          </div>
+        ))
+      )}
+
       {confirm && (
         <div className="modal-overlay" onClick={() => setConfirm(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -443,10 +533,19 @@ function HistoryPage({ logs, exercises, onDelete }) {
 
 // ─── Progress Page ────────────────────────────────────────────────────────────
 function ProgressPage({ logs, exercises }) {
-  const exMap = Object.fromEntries(exercises.map(e => [e.id, e.name]));
+  const [filterGroup, setFilterGroup] = useState("todos");
+  const exMap = Object.fromEntries(exercises.map(e => [e.id, e]));
+
   const byEx = {};
   logs.forEach(l => { if (!byEx[l.exerciseId]) byEx[l.exerciseId] = []; byEx[l.exerciseId].push(l); });
-  const exIds = Object.keys(byEx);
+
+  const usedGroups = ["todos", ...GROUPS.map(g => g.id).filter(id =>
+    Object.keys(byEx).some(exId => exMap[exId]?.group === id)
+  )];
+
+  const exIds = Object.keys(byEx).filter(id =>
+    filterGroup === "todos" || exMap[id]?.group === filterGroup
+  );
 
   if (exIds.length === 0) return (
     <div className="page">
@@ -456,7 +555,16 @@ function ProgressPage({ logs, exercises }) {
 
   return (
     <div className="page">
+      <div className="group-tabs">
+        {usedGroups.map(id => (
+          <button key={id} className={`group-tab${filterGroup === id ? " active" : ""}`} onClick={() => setFilterGroup(id)}>
+            {id === "todos" ? "Todos" : `${groupEmoji(id)} ${groupLabel(id)}`}
+          </button>
+        ))}
+      </div>
+
       {exIds.map(id => {
+        const ex = exMap[id];
         const entries = [...byEx[id]].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
         const last = entries[entries.length - 1];
         const best = entries.reduce((a, b) => b.load > a.load ? b : a, entries[0]);
@@ -465,7 +573,10 @@ function ProgressPage({ logs, exercises }) {
 
         return (
           <div key={id} className="progress-card">
-            <div className="progress-card-header">{exMap[id] || "Exercício removido"}</div>
+            <div className="progress-card-header">
+              <span>{ex?.name || "Exercício removido"}</span>
+              {ex?.group && <span className="group-badge">{groupEmoji(ex.group)} {groupLabel(ex.group)}</span>}
+            </div>
             <div className="progress-card-body">
               <div className="stat-row">
                 <div className="stat-chip">
