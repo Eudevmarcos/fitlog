@@ -17,6 +17,14 @@ const now = () => new Date().toISOString();
 const fmtDate = (iso) => new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 const fmtTime = (iso) => new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 const isoDay = (iso) => iso.slice(0, 10);
+const fmtWeekday = (isoDate) => {
+  const d = new Date(isoDate + "T12:00:00");
+  const weekday = d.toLocaleDateString("pt-BR", { weekday: "long" });
+  const date = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  return { weekday: weekday.charAt(0).toUpperCase() + weekday.slice(1), date };
+};
+const isToday = (isoDate) => isoDay(new Date().toISOString()) === isoDate;
+const isYesterday = (isoDate) => { const y = new Date(); y.setDate(y.getDate() - 1); return isoDay(y.toISOString()) === isoDate; };
 
 const AVATAR_COLORS = ["#7c6aff","#34d399","#f87171","#fbbf24","#60a5fa","#f472b6","#a78bfa","#fb923c"];
 const avatarColor = (name) => AVATAR_COLORS[(name.charCodeAt(0) || 0) % AVATAR_COLORS.length];
@@ -152,7 +160,12 @@ const css = `
   .log-badge { background: var(--surface2); border-radius: 6px; padding: 5px 10px; font-size: 13px; font-weight: 500; font-family: 'DM Mono', monospace; }
   .log-badge.green { color: var(--green); }
   .day-group { display: flex; flex-direction: column; gap: 10px; }
-  .day-label { font-size: 13px; font-weight: 700; color: var(--accent2); padding: 4px 0; }
+  .day-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 4px; }
+  .day-label { display: flex; align-items: baseline; gap: 8px; padding: 8px 0 4px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+  .day-weekday { font-size: 15px; font-weight: 700; color: var(--text); }
+  .day-weekday.today { color: var(--accent2); }
+  .day-date { font-size: 12px; color: var(--text3); }
+  .day-today-badge { font-size: 10px; font-weight: 700; background: rgba(167,139,250,0.15); color: var(--accent2); padding: 2px 7px; border-radius: 10px; }
 
   .stat-row { display: flex; gap: 10px; }
   .stat-chip { flex: 1; background: var(--surface2); border-radius: var(--radius-sm); padding: 12px; display: flex; flex-direction: column; gap: 4px; }
@@ -194,6 +207,49 @@ const css = `
   .date-filter { display: flex; gap: 8px; align-items: center; }
   .date-filter input[type=date] { flex: 1; font-size: 14px; padding: 10px 12px; }
   .date-filter input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.6); }
+  .weekday-block { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .weekday-header { width: 100%; display: flex; align-items: center; gap: 12px; padding: 16px; background: transparent; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+  .weekday-header:active { background: var(--surface2); }
+  .weekday-emoji { font-size: 22px; flex-shrink: 0; }
+  .weekday-info { flex: 1; text-align: left; display: flex; flex-direction: column; gap: 3px; }
+  .weekday-name { font-size: 16px; font-weight: 700; color: var(--text); }
+  .weekday-count { font-size: 12px; color: var(--text2); }
+  .weekday-body { border-top: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .weekday-date-group { display: flex; flex-direction: column; gap: 8px; }
+  .weekday-date-label { font-size: 12px; font-weight: 700; color: var(--accent2); padding: 4px 0; }
+
+  /* ── Cabeçalho do dia no histórico ── */
+  .day-header { display: flex; align-items: center; gap: 8px; padding: 12px 0 6px; border-bottom: 1.5px solid var(--border); margin-bottom: 2px; }
+  .day-weekday { font-size: 16px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
+  .day-weekday.today { color: var(--accent2); }
+  .day-date-label { font-size: 12px; color: var(--text2); background: var(--surface2); padding: 3px 8px; border-radius: 6px; }
+  .day-today-badge { font-size: 10px; font-weight: 700; background: rgba(167,139,250,0.15); color: var(--accent2); padding: 2px 8px; border-radius: 10px; }
+  .day-count { font-size: 11px; color: var(--text3); margin-left: auto; }
+
+  /* ── RPG ── */
+  .rpg-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 14px; position: relative; overflow: hidden; }
+  .rpg-card::before { content: ''; position: absolute; top: -40px; right: -40px; width: 120px; height: 120px; border-radius: 50%; background: radial-gradient(circle, rgba(124,106,255,0.15) 0%, transparent 70%); pointer-events: none; }
+  .rpg-rank-row { display: flex; align-items: center; gap: 14px; }
+  .rpg-icon { font-size: 40px; line-height: 1; }
+  .rpg-info { flex: 1; }
+  .rpg-rank-label { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .rpg-name { font-size: 20px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
+  .rpg-xp-total { text-align: right; }
+  .rpg-xp-num { font-size: 28px; font-weight: 800; font-family: 'DM Mono', monospace; color: var(--accent2); }
+  .rpg-xp-label { font-size: 11px; color: var(--text2); display: block; text-align: right; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .rpg-bar-wrap { display: flex; flex-direction: column; gap: 6px; }
+  .rpg-bar-track { height: 10px; background: var(--surface2); border-radius: 99px; overflow: hidden; border: 1px solid var(--border); }
+  .rpg-bar-fill { height: 100%; border-radius: 99px; transition: width 0.6s ease; box-shadow: 0 0 8px currentColor; }
+  .rpg-bar-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); font-family: 'DM Mono', monospace; }
+  .rpg-next { font-size: 12px; color: var(--text2); background: var(--surface2); padding: 8px 12px; border-radius: var(--radius-sm); }
+  .rpg-ranks-list { display: flex; flex-direction: column; gap: 6px; }
+  .rpg-rank-item { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; opacity: 0.4; }
+  .rpg-rank-item.unlocked { opacity: 1; }
+  .rpg-rank-item.current { border-color: var(--accent); background: rgba(124,106,255,0.08); opacity: 1; }
+  .rpg-rank-item-icon { font-size: 22px; width: 32px; text-align: center; }
+  .rpg-rank-item-name { font-size: 14px; font-weight: 700; }
+  .rpg-rank-item-req { font-size: 11px; color: var(--text3); margin-top: 2px; }
+  .rpg-current-badge { font-size: 10px; font-weight: 800; color: var(--accent); background: rgba(124,106,255,0.15); padding: 3px 8px; border-radius: 20px; letter-spacing: 0.5px; white-space: nowrap; }
 `;
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -577,21 +633,34 @@ function LogPage({ exercises, onAdd }) {
 }
 
 // ─── History Page ─────────────────────────────────────────────────────────────
+const WEEKDAY_ORDER = [1,2,3,4,5,6,0];
+const WEEKDAY_LABELS = {
+  0: "Domingo", 1: "Segunda-Feira", 2: "Terça-Feira",
+  3: "Quarta-Feira", 4: "Quinta-Feira", 5: "Sexta-Feira", 6: "Sábado"
+};
+const WEEKDAY_EMOJIS = { 0:"☀️", 1:"💪", 2:"🔥", 3:"⚡", 4:"🏋️", 5:"💥", 6:"😴" };
+
 function HistoryPage({ logs, exercises, onDelete, profile }) {
   const [confirm, setConfirm] = useState(null);
-  const [dateFilter, setDateFilter] = useState("");
+  const [openDay, setOpenDay] = useState(null);
   const exMap = Object.fromEntries(exercises.map(e => [e.id, { name: e.name, group: e.group }]));
 
-  const filtered = dateFilter ? logs.filter(l => isoDay(l.createdAt) === dateFilter) : logs;
-  const byDay = {};
-  filtered.forEach(l => { const day = isoDay(l.createdAt); if (!byDay[day]) byDay[day] = []; byDay[day].push(l); });
-  const days = Object.keys(byDay).sort((a, b) => b.localeCompare(a));
+  const byWeekday = {};
+  WEEKDAY_ORDER.forEach(d => byWeekday[d] = []);
+  logs.forEach(l => {
+    const d = new Date(l.createdAt).getDay();
+    byWeekday[d].push(l);
+  });
+  WEEKDAY_ORDER.forEach(d => {
+    byWeekday[d].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  });
 
   const exportCSV = () => {
-    const rows = [["Data", "Hora", "Exercício", "Grupo", "Carga (kg)", "Séries", "Repetições", "Observação"]];
+    const rows = [["Dia da Semana", "Data", "Hora", "Exercício", "Grupo", "Carga (kg)", "Séries", "Repetições", "Observação"]];
     logs.forEach(l => {
       const ex = exMap[l.exerciseId];
-      rows.push([fmtDate(l.createdAt), fmtTime(l.createdAt), ex?.name || "Removido", ex?.group ? groupLabel(ex.group) : "", l.load, l.sets, l.reps, l.note || ""]);
+      const d = new Date(l.createdAt).getDay();
+      rows.push([WEEKDAY_LABELS[d], fmtDate(l.createdAt), fmtTime(l.createdAt), ex?.name || "Removido", ex?.group ? groupLabel(ex.group) : "", l.load, l.sets, l.reps, l.note || ""]);
     });
     const csv = rows.map(r => r.map(c => `"${c}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
@@ -601,56 +670,78 @@ function HistoryPage({ logs, exercises, onDelete, profile }) {
     URL.revokeObjectURL(url);
   };
 
+  if (logs.length === 0) return (
+    <div className="page">
+      <div className="empty"><Icon name="history" size={40} /><p>Nenhum treino registrado ainda.<br />Use a aba "Registrar" para começar!</p></div>
+    </div>
+  );
+
   return (
     <div className="page">
-      <div className="card" style={{ gap: 10 }}>
-        <div className="date-filter">
-          <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} />
-          {dateFilter && <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setDateFilter("")}><Icon name="x" size={16} /></button>}
-        </div>
-        <p style={{ fontSize: 12, color: "var(--text3)" }}>
-          {dateFilter ? `${filtered.length} registro(s) em ${fmtDate(dateFilter + "T12:00:00")}` : `${logs.length} registros no total`}
-        </p>
-      </div>
+      <p className="section-title">{logs.length} registro{logs.length !== 1 ? "s" : ""} no total</p>
 
-      {logs.length > 0 && (
-        <button className="btn btn-green" onClick={exportCSV}>
-          <Icon name="download" size={16} /> Exportar planilha (.csv)
-        </button>
-      )}
+      <button className="btn btn-green" onClick={exportCSV}>
+        <Icon name="download" size={16} /> Exportar planilha (.csv)
+      </button>
 
-      {filtered.length === 0 ? (
-        <div className="empty"><Icon name="history" size={40} /><p>{dateFilter ? "Nenhum treino nessa data." : "Nenhum treino registrado ainda."}</p></div>
-      ) : (
-        days.map(day => (
-          <div key={day} className="day-group">
-            <p className="day-label">📅 {fmtDate(day + "T12:00:00")}</p>
-            {byDay[day].map(log => {
-              const ex = exMap[log.exerciseId];
-              return (
-                <div key={log.id} className="log-item">
-                  <div className="log-header">
-                    <div>
-                      <div className="log-exercise">{ex?.name || "Exercício removido"}</div>
-                      {ex?.group && <span className="group-badge" style={{ marginTop: 4 }}>{groupEmoji(ex.group)} {groupLabel(ex.group)}</span>}
-                    </div>
-                    <div className="log-date">{fmtTime(log.createdAt)}</div>
+      {WEEKDAY_ORDER.map(d => {
+        const dayLogs = byWeekday[d];
+        if (dayLogs.length === 0) return null;
+        const isOpen = openDay === d;
+        const byDate = {};
+        dayLogs.forEach(l => {
+          const date = isoDay(l.createdAt);
+          if (!byDate[date]) byDate[date] = [];
+          byDate[date].push(l);
+        });
+        const dates = Object.keys(byDate).sort((a,b) => b.localeCompare(a));
+
+        return (
+          <div key={d} className="weekday-block">
+            <button className="weekday-header" onClick={() => setOpenDay(isOpen ? null : d)}>
+              <span className="weekday-emoji">{WEEKDAY_EMOJIS[d]}</span>
+              <div className="weekday-info">
+                <span className="weekday-name">{WEEKDAY_LABELS[d]}</span>
+                <span className="weekday-count">{dayLogs.length} registro{dayLogs.length !== 1 ? "s" : ""} · {dates.length} dia{dates.length !== 1 ? "s" : ""}</span>
+              </div>
+              <span className="weekday-arrow" style={{ transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s ease", color: "var(--text3)", fontSize: 20, fontWeight: 300 }}>›</span>
+            </button>
+
+            {isOpen && (
+              <div className="weekday-body">
+                {dates.map(date => (
+                  <div key={date} className="weekday-date-group">
+                    <p className="weekday-date-label">📅 {fmtDate(date + "T12:00:00")}</p>
+                    {byDate[date].map(log => {
+                      const ex = exMap[log.exerciseId];
+                      return (
+                        <div key={log.id} className="log-item">
+                          <div className="log-header">
+                            <div>
+                              <div className="log-exercise">{ex?.name || "Exercício removido"}</div>
+                              {ex?.group && <span className="group-badge" style={{ marginTop: 4 }}>{groupEmoji(ex.group)} {groupLabel(ex.group)}</span>}
+                            </div>
+                            <div className="log-date">{fmtTime(log.createdAt)}</div>
+                          </div>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div className="log-stats">
+                              <span className="log-badge green">{log.load} kg</span>
+                              <span className="log-badge">{log.sets} séries</span>
+                              <span className="log-badge">{log.reps} reps</span>
+                            </div>
+                            <button className="btn btn-danger btn-icon btn-sm" onClick={() => setConfirm(log.id)}><Icon name="trash" size={14} /></button>
+                          </div>
+                          {log.note && <p style={{ fontSize: 12, color: "var(--text2)", marginTop: 8 }}>📝 {log.note}</p>}
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div className="log-stats">
-                      <span className="log-badge green">{log.load} kg</span>
-                      <span className="log-badge">{log.sets} séries</span>
-                      <span className="log-badge">{log.reps} reps</span>
-                    </div>
-                    <button className="btn btn-danger btn-icon btn-sm" onClick={() => setConfirm(log.id)}><Icon name="trash" size={14} /></button>
-                  </div>
-                  {log.note && <p style={{ fontSize: 12, color: "var(--text2)", marginTop: 8 }}>📝 {log.note}</p>}
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            )}
           </div>
-        ))
-      )}
+        );
+      })}
 
       {confirm && (
         <div className="modal-overlay" onClick={() => setConfirm(null)}>
@@ -665,77 +756,4 @@ function HistoryPage({ logs, exercises, onDelete, profile }) {
   );
 }
 
-// ─── Progress Page ────────────────────────────────────────────────────────────
-function ProgressPage({ logs, exercises }) {
-  const [filterGroup, setFilterGroup] = useState("todos");
-  const exMap = Object.fromEntries(exercises.map(e => [e.id, e]));
-  const byEx = {};
-  logs.forEach(l => { if (!byEx[l.exerciseId]) byEx[l.exerciseId] = []; byEx[l.exerciseId].push(l); });
-  const usedGroups = ["todos", ...GROUPS.map(g => g.id).filter(id => Object.keys(byEx).some(exId => exMap[exId]?.group === id))];
-  const exIds = Object.keys(byEx).filter(id => filterGroup === "todos" || exMap[id]?.group === filterGroup);
 
-  if (exIds.length === 0) return (
-    <div className="page">
-      <div className="empty"><Icon name="chart" size={40} /><p>Registre treinos para ver<br />sua evolução aqui!</p></div>
-    </div>
-  );
-
-  return (
-    <div className="page">
-      <div className="group-tabs">
-        {usedGroups.map(id => (
-          <button key={id} className={`group-tab${filterGroup === id ? " active" : ""}`} onClick={() => setFilterGroup(id)}>
-            {id === "todos" ? "Todos" : `${groupEmoji(id)} ${groupLabel(id)}`}
-          </button>
-        ))}
-      </div>
-      {exIds.map(id => {
-        const ex = exMap[id];
-        const entries = [...byEx[id]].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-        const last = entries[entries.length - 1];
-        const best = entries.reduce((a, b) => b.load > a.load ? b : a, entries[0]);
-        const prev = entries.length >= 2 ? entries[entries.length - 2] : null;
-        const delta = prev ? +(last.load - prev.load).toFixed(1) : 0;
-        return (
-          <div key={id} className="progress-card">
-            <div className="progress-card-header">
-              <span>{ex?.name || "Exercício removido"}</span>
-              {ex?.group && <span className="group-badge">{groupEmoji(ex.group)} {groupLabel(ex.group)}</span>}
-            </div>
-            <div className="progress-card-body">
-              <div className="stat-row">
-                <div className="stat-chip">
-                  <span className="label">Última carga</span>
-                  <span className="val green">{last.load}<span className="unit"> kg</span></span>
-                  {delta !== 0 && <span style={{ fontSize: 11, color: delta > 0 ? "var(--green)" : "var(--red)" }}>{delta > 0 ? "+" : ""}{delta} kg vs anterior</span>}
-                </div>
-                <div className="stat-chip">
-                  <span className="label">Melhor carga</span>
-                  <span className="val yellow">{best.load}<span className="unit"> kg</span></span>
-                  <span style={{ fontSize: 11, color: "var(--text3)" }}>{fmtDate(best.createdAt)}</span>
-                </div>
-              </div>
-              {entries.length > 1 && (
-                <>
-                  <div className="divider" />
-                  <p className="section-title">Histórico</p>
-                  <div className="timeline">
-                    {[...entries].reverse().map(e => (
-                      <div key={e.id} className="timeline-row">
-                        <span className="timeline-date">{fmtDate(e.createdAt)}</span>
-                        <span className="timeline-val">
-                          {e.load} kg · {e.sets}×{e.reps}
-                          {e.id === best.id && <span className="pr-badge">PR</span>}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
