@@ -250,6 +250,29 @@ const css = `
   .rpg-rank-item-name { font-size: 14px; font-weight: 700; }
   .rpg-rank-item-req { font-size: 11px; color: var(--text3); margin-top: 2px; }
   .rpg-current-badge { font-size: 10px; font-weight: 800; color: var(--accent); background: rgba(124,106,255,0.15); padding: 3px 8px; border-radius: 20px; letter-spacing: 0.5px; white-space: nowrap; }
+  /* ── RPG Card ── */
+  .rpg-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+  .rpg-header { display: flex; align-items: center; gap: 16px; }
+  .rpg-avatar { width: 72px; height: 72px; border-radius: 18px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .rpg-identity { display: flex; flex-direction: column; gap: 2px; }
+  .rpg-level-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
+  .rpg-class { font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -0.5px; }
+  .rpg-xp-label { font-size: 12px; color: var(--text2); font-family: 'DM Mono', monospace; }
+  .rpg-bar-section { display: flex; flex-direction: column; gap: 6px; }
+  .rpg-bar-labels { display: flex; justify-content: space-between; align-items: center; }
+  .rpg-bar-bg { height: 12px; background: var(--surface2); border-radius: 99px; overflow: visible; position: relative; }
+  .rpg-bar-fill { height: 100%; border-radius: 99px; transition: width 1s ease; position: relative; z-index: 1; }
+  .rpg-bar-glow { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 16px; height: 16px; border-radius: 50%; opacity: 0.8; z-index: 2; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100% { transform: translate(-50%,-50%) scale(1); opacity:0.8; } 50% { transform: translate(-50%,-50%) scale(1.5); opacity:0.3; } }
+  .rpg-stats { display: flex; align-items: center; background: var(--surface2); border-radius: var(--radius-sm); padding: 12px; }
+  .rpg-stat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .rpg-stat-val { font-size: 22px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--text); }
+  .rpg-stat-label { font-size: 11px; color: var(--text2); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .rpg-stat-divider { width: 1px; height: 36px; background: var(--border); }
+  .rpg-next { background: var(--surface2); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .rpg-howto { display: flex; flex-direction: column; gap: 5px; background: var(--surface2); border-radius: var(--radius-sm); padding: 12px; }
+  .rpg-howto-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); margin-bottom: 4px; }
+  .rpg-howto span { font-size: 13px; color: var(--text2); }
 `;
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
@@ -756,4 +779,217 @@ function HistoryPage({ logs, exercises, onDelete, profile }) {
   );
 }
 
+// ─── RPG System ──────────────────────────────────────────────────────────────
+const LEVELS = [
+  { lvl: 1,  name: "Novato",       emoji: "🥚", xpNeeded: 0,    color: "#9090aa" },
+  { lvl: 2,  name: "Iniciante",    emoji: "🐣", xpNeeded: 50,   color: "#60a5fa" },
+  { lvl: 3,  name: "Guerreiro",    emoji: "⚔️",  xpNeeded: 150,  color: "#34d399" },
+  { lvl: 4,  name: "Atleta",       emoji: "🏃",  xpNeeded: 300,  color: "#a78bfa" },
+  { lvl: 5,  name: "Campeão",      emoji: "🏆",  xpNeeded: 500,  color: "#fbbf24" },
+  { lvl: 6,  name: "Lenda",        emoji: "🔥",  xpNeeded: 800,  color: "#f97316" },
+  { lvl: 7,  name: "Mestre",       emoji: "💎",  xpNeeded: 1200, color: "#e879f9" },
+  { lvl: 8,  name: "Imortal",      emoji: "⚡",  xpNeeded: 1800, color: "#f87171" },
+  { lvl: 9,  name: "Deus do Ferro", emoji: "👑", xpNeeded: 2500, color: "#fbbf24" },
+];
+
+function calcXP(logs, exercises) {
+  const exMap = Object.fromEntries(exercises.map(e => [e.id, e]));
+  let xp = 0;
+  const prSet = new Set();
+
+  // ordena por data para detectar PRs
+  const sorted = [...logs].sort((a,b) => new Date(a.createdAt) - new Date(b.createdAt));
+  const bestLoad = {};
+
+  sorted.forEach(l => {
+    // +10 XP por treino registrado
+    xp += 10;
+    // +5 XP por cada série
+    xp += (l.sets || 1) * 5;
+    // PR detection: +30 XP
+    if (!bestLoad[l.exerciseId] || l.load > bestLoad[l.exerciseId]) {
+      if (bestLoad[l.exerciseId] !== undefined) {
+        xp += 30; // bateu o recorde
+        prSet.add(l.exerciseId);
+      }
+      bestLoad[l.exerciseId] = l.load;
+    }
+  });
+
+  // +5 XP por cada dia único de treino
+  const uniqueDays = new Set(logs.map(l => isoDay(l.createdAt)));
+  xp += uniqueDays.size * 5;
+
+  // calcular nível
+  let currentLevel = LEVELS[0];
+  let nextLevel = LEVELS[1];
+  for (let i = LEVELS.length - 1; i >= 0; i--) {
+    if (xp >= LEVELS[i].xpNeeded) {
+      currentLevel = LEVELS[i];
+      nextLevel = LEVELS[i + 1] || null;
+      break;
+    }
+  }
+
+  const xpInLevel = xp - currentLevel.xpNeeded;
+  const xpToNext = nextLevel ? nextLevel.xpNeeded - currentLevel.xpNeeded : 1;
+  const progress = nextLevel ? Math.min(100, Math.round((xpInLevel / xpToNext) * 100)) : 100;
+
+  return { xp, currentLevel, nextLevel, progress, xpInLevel, xpToNext, uniqueDays: uniqueDays.size, prs: prSet.size };
+}
+
+// ─── Progress Page ────────────────────────────────────────────────────────────
+function ProgressPage({ logs, exercises }) {
+  const [filterGroup, setFilterGroup] = useState("todos");
+  const exMap = Object.fromEntries(exercises.map(e => [e.id, e]));
+  const rpg = calcXP(logs, exercises);
+  const { xp, currentLevel, nextLevel, progress, xpInLevel, xpToNext, prs } = rpg;
+
+  const byEx = {};
+  logs.forEach(l => { if (!byEx[l.exerciseId]) byEx[l.exerciseId] = []; byEx[l.exerciseId].push(l); });
+  const usedGroups = ["todos", ...GROUPS.map(g => g.id).filter(id => Object.keys(byEx).some(exId => exMap[exId]?.group === id))];
+  const exIds = Object.keys(byEx).filter(id => filterGroup === "todos" || exMap[id]?.group === filterGroup);
+
+  return (
+    <div className="page">
+
+      {/* ── Card RPG ── */}
+      <div className="rpg-card" style={{ borderColor: currentLevel.color + "55" }}>
+        {/* header */}
+        <div className="rpg-header">
+          <div className="rpg-avatar" style={{ background: currentLevel.color + "22", border: `2px solid ${currentLevel.color}` }}>
+            <span style={{ fontSize: 32 }}>{currentLevel.emoji}</span>
+          </div>
+          <div className="rpg-identity">
+            <div className="rpg-level-label" style={{ color: currentLevel.color }}>Nível {currentLevel.lvl}</div>
+            <div className="rpg-class">{currentLevel.name}</div>
+            <div className="rpg-xp-label">{xp} XP total</div>
+          </div>
+        </div>
+
+        {/* barra de vida / XP */}
+        <div className="rpg-bar-section">
+          <div className="rpg-bar-labels">
+            <span style={{ fontSize: 12, color: "var(--text2)", fontWeight: 600 }}>
+              {nextLevel ? `${xpInLevel} / ${xpToNext} XP para Nível ${nextLevel.lvl}` : "Nível máximo atingido! 👑"}
+            </span>
+            <span style={{ fontSize: 12, color: currentLevel.color, fontWeight: 700 }}>{progress}%</span>
+          </div>
+          <div className="rpg-bar-bg">
+            <div
+              className="rpg-bar-fill"
+              style={{ width: `${progress}%`, background: `linear-gradient(90deg, ${currentLevel.color}, ${nextLevel?.color || currentLevel.color})` }}
+            />
+            {/* pulso animado na ponta */}
+            {progress > 0 && progress < 100 && (
+              <div className="rpg-bar-glow" style={{ left: `${progress}%`, background: currentLevel.color }} />
+            )}
+          </div>
+        </div>
+
+        {/* stats do game */}
+        <div className="rpg-stats">
+          <div className="rpg-stat">
+            <span className="rpg-stat-val">{logs.length}</span>
+            <span className="rpg-stat-label">Treinos</span>
+          </div>
+          <div className="rpg-stat-divider" />
+          <div className="rpg-stat">
+            <span className="rpg-stat-val">{rpg.uniqueDays}</span>
+            <span className="rpg-stat-label">Dias ativos</span>
+          </div>
+          <div className="rpg-stat-divider" />
+          <div className="rpg-stat">
+            <span className="rpg-stat-val">{prs}</span>
+            <span className="rpg-stat-label">Recordes 🏆</span>
+          </div>
+        </div>
+
+        {/* próximo nível */}
+        {nextLevel && (
+          <div className="rpg-next">
+            <span style={{ fontSize: 12, color: "var(--text3)" }}>
+              Próximo: {nextLevel.emoji} <strong style={{ color: "var(--text2)" }}>{nextLevel.name}</strong> — faltam {xpToNext - xpInLevel} XP
+            </span>
+          </div>
+        )}
+
+        {/* como ganhar XP */}
+        <div className="rpg-howto">
+          <p className="rpg-howto-title">Como ganhar XP</p>
+          <span>🏋️ +10 XP por treino registrado</span>
+          <span>📋 +5 XP por série feita</span>
+          <span>🏆 +30 XP ao bater recorde</span>
+          <span>📅 +5 XP por cada dia único treinado</span>
+        </div>
+      </div>
+
+      {/* ── Evolução por exercício ── */}
+      {exIds.length > 0 && (
+        <>
+          <p className="section-title" style={{ marginTop: 4 }}>Evolução por exercício</p>
+          <div className="group-tabs">
+            {usedGroups.map(id => (
+              <button key={id} className={`group-tab${filterGroup === id ? " active" : ""}`} onClick={() => setFilterGroup(id)}>
+                {id === "todos" ? "Todos" : `${groupEmoji(id)} ${groupLabel(id)}`}
+              </button>
+            ))}
+          </div>
+
+          {exIds.map(id => {
+            const ex = exMap[id];
+            const entries = [...byEx[id]].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            const last = entries[entries.length - 1];
+            const best = entries.reduce((a, b) => b.load > a.load ? b : a, entries[0]);
+            const prev = entries.length >= 2 ? entries[entries.length - 2] : null;
+            const delta = prev ? +(last.load - prev.load).toFixed(1) : 0;
+            return (
+              <div key={id} className="progress-card">
+                <div className="progress-card-header">
+                  <span>{ex?.name || "Exercício removido"}</span>
+                  {ex?.group && <span className="group-badge">{groupEmoji(ex.group)} {groupLabel(ex.group)}</span>}
+                </div>
+                <div className="progress-card-body">
+                  <div className="stat-row">
+                    <div className="stat-chip">
+                      <span className="label">Última carga</span>
+                      <span className="val green">{last.load}<span className="unit"> kg</span></span>
+                      {delta !== 0 && <span style={{ fontSize: 11, color: delta > 0 ? "var(--green)" : "var(--red)" }}>{delta > 0 ? "+" : ""}{delta} kg vs anterior</span>}
+                    </div>
+                    <div className="stat-chip">
+                      <span className="label">Melhor carga</span>
+                      <span className="val yellow">{best.load}<span className="unit"> kg</span></span>
+                      <span style={{ fontSize: 11, color: "var(--text3)" }}>{fmtDate(best.createdAt)}</span>
+                    </div>
+                  </div>
+                  {entries.length > 1 && (
+                    <>
+                      <div className="divider" />
+                      <p className="section-title">Histórico</p>
+                      <div className="timeline">
+                        {[...entries].reverse().map(e => (
+                          <div key={e.id} className="timeline-row">
+                            <span className="timeline-date">{fmtDate(e.createdAt)}</span>
+                            <span className="timeline-val">
+                              {e.load} kg · {e.sets}×{e.reps}
+                              {e.id === best.id && <span className="pr-badge">PR</span>}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </>
+      )}
+
+      {logs.length === 0 && (
+        <div className="empty"><Icon name="chart" size={40} /><p>Registre treinos para ver<br />sua evolução aqui!</p></div>
+      )}
+    </div>
+  );
+}
 
