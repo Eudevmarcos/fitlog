@@ -56,9 +56,11 @@ function calcXP(logs) {
   sorted.forEach(l => {
     xp += 10;
     xp += (l.sets || 1) * 5;
-    const effectiveLoad = l.unilateral
-      ? Math.max(l.loadR || 0, l.loadL || 0)
-      : (l.load || 0);
+    const effectiveLoad = l.mode === "tempo"
+      ? 0
+      : l.mode === "unilateral"
+        ? Math.max(l.loadR || 0, l.loadL || 0)
+        : (l.load || 0);
     if (bestLoad[l.exerciseId] === undefined) {
       bestLoad[l.exerciseId] = effectiveLoad;
     } else if (effectiveLoad > bestLoad[l.exerciseId]) {
@@ -555,10 +557,11 @@ function ExercisesPage({ exercises, onAdd, onEdit, onDelete }) {
 function LogPage({ exercises, onAdd }) {
   const [filterGroup, setFilterGroup] = useState("todos");
   const [exId, setExId] = useState("");
-  const [unilateral, setUnilateral] = useState(false);
+  const [mode, setMode] = useState("bilateral"); // bilateral | unilateral | tempo
   const [load, setLoad] = useState("");
   const [loadR, setLoadR] = useState("");
   const [loadL, setLoadL] = useState("");
+  const [minutes, setMinutes] = useState("");
   const [sets, setSets] = useState("3");
   const [reps, setReps] = useState("12");
   const [note, setNote] = useState("");
@@ -567,33 +570,25 @@ function LogPage({ exercises, onAdd }) {
   const filtered = filterGroup === "todos" ? exercises : exercises.filter(e => e.group === filterGroup);
   const usedGroups = ["todos", ...GROUPS.map(g => g.id).filter(id => exercises.some(e => e.group === id))];
 
-  const canSubmit = exId && (unilateral ? (loadR || loadL) : load);
+  const canSubmit = exId && (
+    mode === "bilateral" ? load :
+    mode === "unilateral" ? (loadR || loadL) :
+    minutes
+  );
+
+  const clearFields = () => { setLoad(""); setLoadR(""); setLoadL(""); setMinutes(""); setNote(""); setExId(""); };
 
   const submit = () => {
     if (!canSubmit) return;
-    if (unilateral) {
-      onAdd({
-        exerciseId: exId,
-        load: null,
-        loadR: loadR ? parseFloat(loadR) : null,
-        loadL: loadL ? parseFloat(loadL) : null,
-        unilateral: true,
-        sets: parseInt(sets),
-        reps: parseInt(reps),
-        note,
-      });
+    if (mode === "bilateral") {
+      onAdd({ exerciseId: exId, mode: "bilateral", load: parseFloat(load), sets: parseInt(sets), reps: parseInt(reps), note });
+    } else if (mode === "unilateral") {
+      onAdd({ exerciseId: exId, mode: "unilateral", load: null, loadR: loadR ? parseFloat(loadR) : null, loadL: loadL ? parseFloat(loadL) : null, sets: parseInt(sets), reps: parseInt(reps), note });
     } else {
-      onAdd({
-        exerciseId: exId,
-        load: parseFloat(load),
-        unilateral: false,
-        sets: parseInt(sets),
-        reps: parseInt(reps),
-        note,
-      });
+      onAdd({ exerciseId: exId, mode: "tempo", load: null, minutes: parseFloat(minutes), note });
     }
     setDone(true); setTimeout(() => setDone(false), 1800);
-    setLoad(""); setLoadR(""); setLoadL(""); setNote(""); setExId("");
+    clearFields();
   };
 
   if (exercises.length === 0) return (
@@ -620,29 +615,22 @@ function LogPage({ exercises, onAdd }) {
           </select>
         </div>
 
-        {/* toggle bilateral / unilateral */}
+        {/* toggle de modo */}
         <div className="toggle-row">
-          <button
-            className={"toggle-btn" + (!unilateral ? " active" : "")}
-            onClick={() => setUnilateral(false)}
-          >
-            Bilateral
-          </button>
-          <button
-            className={"toggle-btn" + (unilateral ? " active" : "")}
-            onClick={() => setUnilateral(true)}
-          >
-            Unilateral
-          </button>
+          <button className={"toggle-btn" + (mode === "bilateral"  ? " active" : "")} onClick={() => setMode("bilateral")}>Bilateral</button>
+          <button className={"toggle-btn" + (mode === "unilateral" ? " active" : "")} onClick={() => setMode("unilateral")}>Unilateral</button>
+          <button className={"toggle-btn" + (mode === "tempo"      ? " active" : "")} onClick={() => setMode("tempo")}>Tempo</button>
         </div>
 
-        {/* carga */}
-        {!unilateral ? (
+        {/* campos conforme modo */}
+        {mode === "bilateral" && (
           <div className="field">
             <label>Carga (kg)</label>
             <input type="number" placeholder="ex: 60" value={load} onChange={e => setLoad(e.target.value)} inputMode="decimal" />
           </div>
-        ) : (
+        )}
+
+        {mode === "unilateral" && (
           <div className="grid2">
             <div className="field">
               <label>Lado Direito (kg)</label>
@@ -655,20 +643,32 @@ function LogPage({ exercises, onAdd }) {
           </div>
         )}
 
-        <div className="grid2">
+        {mode === "tempo" && (
           <div className="field">
-            <label>Series</label>
-            <input type="number" placeholder="3" value={sets} onChange={e => setSets(e.target.value)} inputMode="numeric" />
+            <label>Duracao (minutos)</label>
+            <input type="number" placeholder="ex: 30" value={minutes} onChange={e => setMinutes(e.target.value)} inputMode="decimal" />
           </div>
-          <div className="field">
-            <label>Repeticoes</label>
-            <input type="number" placeholder="12" value={reps} onChange={e => setReps(e.target.value)} inputMode="numeric" />
+        )}
+
+        {/* series e reps — so para bilateral e unilateral */}
+        {mode !== "tempo" && (
+          <div className="grid2">
+            <div className="field">
+              <label>Series</label>
+              <input type="number" placeholder="3" value={sets} onChange={e => setSets(e.target.value)} inputMode="numeric" />
+            </div>
+            <div className="field">
+              <label>Repeticoes</label>
+              <input type="number" placeholder="12" value={reps} onChange={e => setReps(e.target.value)} inputMode="numeric" />
+            </div>
           </div>
-        </div>
+        )}
+
         <div className="field">
           <label>Observacao (opcional)</label>
-          <input placeholder="ex: boa forma, cansado..." value={note} onChange={e => setNote(e.target.value)} />
+          <input placeholder="ex: corrida leve, cansado..." value={note} onChange={e => setNote(e.target.value)} />
         </div>
+
         <button
           className="btn btn-primary"
           onClick={submit}
@@ -758,15 +758,17 @@ function HistoryPage({ logs, exercises, onDelete, profile }) {
                           </div>
                           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                             <div className="log-stats">
-                              {log.unilateral
-                                ? <>
-                                    {log.loadR != null && <span className="log-badge green">D: {log.loadR} kg</span>}
-                                    {log.loadL != null && <span className="log-badge green">E: {log.loadL} kg</span>}
-                                  </>
-                                : <span className="log-badge green">{log.load} kg</span>
+                              {log.mode === "tempo"
+                                ? <span className="log-badge green">⏱ {log.minutes} min</span>
+                                : log.mode === "unilateral"
+                                  ? <>
+                                      {log.loadR != null && <span className="log-badge green">D: {log.loadR} kg</span>}
+                                      {log.loadL != null && <span className="log-badge green">E: {log.loadL} kg</span>}
+                                    </>
+                                  : <span className="log-badge green">{log.load} kg</span>
                               }
-                              <span className="log-badge">{log.sets} series</span>
-                              <span className="log-badge">{log.reps} reps</span>
+                              {log.mode !== "tempo" && <span className="log-badge">{log.sets} series</span>}
+                              {log.mode !== "tempo" && <span className="log-badge">{log.reps} reps</span>}
                             </div>
                             <button className="btn btn-danger btn-icon btn-sm" onClick={() => setConfirm(log.id)}><Icon name="trash" size={14} /></button>
                           </div>
@@ -916,9 +918,11 @@ function ProgressPage({ logs, exercises }) {
                           <div key={e.id} className="timeline-row">
                             <span className="timeline-date">{fmtDate(e.createdAt)}</span>
                             <span className="timeline-val">
-                              {e.unilateral
-                              ? (e.loadR != null ? "D:"+e.loadR : "") + (e.loadR != null && e.loadL != null ? " / " : "") + (e.loadL != null ? "E:"+e.loadL : "") + " kg · " + e.sets + "x" + e.reps
-                              : e.load + " kg · " + e.sets + "x" + e.reps
+                              {e.mode === "tempo"
+                              ? "⏱ " + e.minutes + " min"
+                              : e.mode === "unilateral"
+                                ? (e.loadR != null ? "D:"+e.loadR : "") + (e.loadR != null && e.loadL != null ? " / " : "") + (e.loadL != null ? "E:"+e.loadL : "") + " kg · " + e.sets + "x" + e.reps
+                                : e.load + " kg · " + e.sets + "x" + e.reps
                             }
                               {e.id === best.id && <span className="pr-badge">PR</span>}
                             </span>
