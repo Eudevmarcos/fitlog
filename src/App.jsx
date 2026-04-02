@@ -56,12 +56,15 @@ function calcXP(logs) {
   sorted.forEach(l => {
     xp += 10;
     xp += (l.sets || 1) * 5;
+    const effectiveLoad = l.unilateral
+      ? Math.max(l.loadR || 0, l.loadL || 0)
+      : (l.load || 0);
     if (bestLoad[l.exerciseId] === undefined) {
-      bestLoad[l.exerciseId] = l.load;
-    } else if (l.load > bestLoad[l.exerciseId]) {
+      bestLoad[l.exerciseId] = effectiveLoad;
+    } else if (effectiveLoad > bestLoad[l.exerciseId]) {
       xp += 30;
       prSet.add(l.exerciseId);
-      bestLoad[l.exerciseId] = l.load;
+      bestLoad[l.exerciseId] = effectiveLoad;
     }
   });
   const uniqueDays = new Set(logs.map(l => isoDay(l.createdAt)));
@@ -162,11 +165,27 @@ const css = `
   .group-tab { flex-shrink: 0; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1.5px solid var(--border); background: transparent; color: var(--text2); font-family: 'DM Sans', sans-serif; transition: all var(--transition); white-space: nowrap; }
   .group-tab.active { background: var(--accent); border-color: var(--accent); color: white; }
   .group-badge { display: inline-flex; align-items: center; gap: 4px; background: var(--surface2); border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 600; color: var(--text2); }
-  .exercise-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .exercise-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .card-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .exercise-item { background: var(--bg); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .exercise-item:not(:last-child) { border-bottom: 1px solid var(--border); }
+  .exercise-name { font-size: 15px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+  .card-actions { display: flex; gap: 6px; flex-shrink: 0; }
   .inline-edit { display: flex; gap: 8px; flex: 1; }
   .inline-edit input { flex: 1; }
+  .group-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .group-section-header { width: 100%; display: flex; align-items: center; gap: 10px; padding: 15px 16px; background: transparent; border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+  .group-section-header:active { background: var(--surface2); }
+  .group-section-emoji { font-size: 18px; flex-shrink: 0; }
+  .group-section-name { font-size: 15px; font-weight: 600; color: var(--text); flex: 1; text-align: left; }
+  .group-section-count { font-size: 11px; color: var(--text3); font-weight: 600; background: var(--surface2); padding: 2px 8px; border-radius: 10px; }
+  .group-section-body { display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+  .add-inline { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--surface); }
+  .add-inline input { flex: 1; font-size: 14px; padding: 9px 12px; }
+  .group-section { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .group-section-header { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid var(--border); background: var(--surface2); }
+  .group-section-emoji { font-size: 18px; }
+  .group-section-name { font-size: 14px; font-weight: 700; color: var(--text); flex: 1; }
+  .group-section-count { font-size: 11px; color: var(--text3); font-weight: 600; background: var(--border); padding: 2px 8px; border-radius: 10px; }
+  .group-section-body { display: flex; flex-direction: column; }
   .log-item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
   .log-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
   .log-exercise { font-size: 15px; font-weight: 600; }
@@ -216,6 +235,9 @@ const css = `
   .modal-sub { font-size: 14px; color: var(--text2); }
   @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
   @keyframes slideUp { from { transform: translateY(30px); opacity:0; } to { transform: translateY(0); opacity:1; } }
+  .toggle-row { display: flex; background: var(--surface2); border-radius: var(--radius-sm); padding: 3px; gap: 3px; }
+  .toggle-btn { flex: 1; padding: 9px; text-align: center; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: transparent; color: var(--text2); font-family: 'DM Sans', sans-serif; transition: all var(--transition); }
+  .toggle-btn.active { background: var(--accent); color: white; }
   .date-filter { display: flex; gap: 8px; align-items: center; }
   .date-filter input[type=date] { flex: 1; font-size: 14px; padding: 10px 12px; }
   .date-filter input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.6); }
@@ -411,73 +433,111 @@ export default function App() {
 function ExercisesPage({ exercises, onAdd, onEdit, onDelete }) {
   const [newName, setNewName] = useState("");
   const [newGroup, setNewGroup] = useState("peito");
+  const [showAdd, setShowAdd] = useState(false);
+  const [openGroups, setOpenGroups] = useState({});
   const [editId, setEditId] = useState(null);
   const [editName, setEditName] = useState("");
   const [editGroup, setEditGroup] = useState("peito");
   const [confirm, setConfirm] = useState(null);
-  const [filterGroup, setFilterGroup] = useState("todos");
 
-  const handleAdd = () => { if (!newName.trim()) return; onAdd(newName.trim(), newGroup); setNewName(""); };
-  const handleEdit = (id) => { if (!editName.trim()) return; onEdit(id, editName.trim(), editGroup); setEditId(null); };
+  const toggleGroup = (id) => setOpenGroups(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const handleAdd = () => {
+    if (!newName.trim()) return;
+    onAdd(newName.trim(), newGroup);
+    setNewName("");
+    setShowAdd(false);
+    setOpenGroups(prev => ({ ...prev, [newGroup]: true }));
+  };
+  const handleEdit = (id) => {
+    if (!editName.trim()) return;
+    onEdit(id, editName.trim(), editGroup);
+    setEditId(null);
+  };
   const startEdit = (ex) => { setEditId(ex.id); setEditName(ex.name); setEditGroup(ex.group || "outro"); };
-  const filtered = filterGroup === "todos" ? exercises : exercises.filter(e => e.group === filterGroup);
-  const usedGroups = ["todos", ...GROUPS.map(g => g.id).filter(id => exercises.some(e => e.group === id))];
+
+  const groupedExercises = GROUPS.map(g => ({
+    ...g,
+    items: exercises.filter(e => e.group === g.id),
+  })).filter(g => g.items.length > 0);
 
   return (
     <div className="page">
-      <div className="card">
-        <div className="field"><label>Novo exercicio</label></div>
-        <div className="field">
-          <select value={newGroup} onChange={e => setNewGroup(e.target.value)}>
-            {GROUPS.map(g => <option key={g.id} value={g.id}>{g.emoji} {g.label}</option>)}
-          </select>
-        </div>
-        <div style={{ display:"flex", gap:8 }}>
-          <input placeholder="ex: Supino reto, Agachamento..." value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAdd()} />
-          <button className="btn btn-primary btn-icon" onClick={handleAdd} style={{ width:48, flexShrink:0 }}><Icon name="plus" size={20} /></button>
-        </div>
-      </div>
-      <div className="group-tabs">
-        {usedGroups.map(id => (
-          <button key={id} className={"group-tab" + (filterGroup === id ? " active" : "")} onClick={() => setFilterGroup(id)}>
-            {id === "todos" ? "Todos" : groupEmoji(id) + " " + groupLabel(id)}
-          </button>
-        ))}
-      </div>
-      <p className="section-title">{filtered.length} exercicio(s)</p>
-      {filtered.length === 0 ? (
-        <div className="empty"><Icon name="dumbbell" size={40} /><p>Nenhum exercicio ainda.<br />Adicione o primeiro acima!</p></div>
+
+      {!showAdd ? (
+        <button className="btn btn-primary" onClick={() => setShowAdd(true)}>
+          <Icon name="plus" size={18} /> Adicionar exercicio
+        </button>
       ) : (
-        <div className="scroll-list">
-          {filtered.map(ex => (
-            <div key={ex.id} className="exercise-item">
-              {editId === ex.id ? (
-                <div style={{ flex:1, display:"flex", flexDirection:"column", gap:8 }}>
-                  <select value={editGroup} onChange={e => setEditGroup(e.target.value)}>
-                    {GROUPS.map(g => <option key={g.id} value={g.id}>{g.emoji} {g.label}</option>)}
-                  </select>
-                  <div className="inline-edit">
-                    <input value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => e.key === "Enter" && handleEdit(ex.id)} autoFocus />
-                    <button className="btn btn-primary btn-icon btn-sm" onClick={() => handleEdit(ex.id)}><Icon name="check" size={16} /></button>
-                    <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setEditId(null)}><Icon name="x" size={16} /></button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:4 }}>
-                    <div className="exercise-name">{ex.name}</div>
-                    {ex.group && <span className="group-badge">{groupEmoji(ex.group)} {groupLabel(ex.group)}</span>}
-                  </div>
-                  <div className="card-actions">
-                    <button className="btn btn-ghost btn-icon btn-sm" onClick={() => startEdit(ex)}><Icon name="edit" size={15} /></button>
-                    <button className="btn btn-danger btn-icon btn-sm" onClick={() => setConfirm(ex.id)}><Icon name="trash" size={15} /></button>
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
+        <div className="card">
+          <div className="field"><label>Novo exercicio</label></div>
+          <div className="field">
+            <select value={newGroup} onChange={e => setNewGroup(e.target.value)}>
+              {GROUPS.map(g => <option key={g.id} value={g.id}>{g.emoji} {g.label}</option>)}
+            </select>
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            <input placeholder="ex: Supino reto, Agachamento..." value={newName} onChange={e => setNewName(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAdd()} autoFocus />
+            <button className="btn btn-primary btn-icon" onClick={handleAdd} style={{ width:48, flexShrink:0 }}><Icon name="check" size={18} /></button>
+          </div>
+          <button className="btn btn-ghost" onClick={() => { setShowAdd(false); setNewName(""); }}>Cancelar</button>
         </div>
       )}
+
+      {exercises.length === 0 ? (
+        <div className="empty"><Icon name="dumbbell" size={40} /><p>Nenhum exercicio ainda.<br />Toque em Adicionar para comecar!</p></div>
+      ) : (
+        <div className="scroll-list">
+          {groupedExercises.map(group => {
+            const isOpen = !!openGroups[group.id];
+            return (
+              <div key={group.id} className="group-section">
+                <button className="group-section-header" onClick={() => toggleGroup(group.id)}>
+                  <span className="group-section-emoji">{group.emoji}</span>
+                  <span className="group-section-name">{group.label}</span>
+                  <span className="group-section-count">{group.items.length}</span>
+                  <span style={{
+                    color: "var(--text3)", fontSize: 20,
+                    transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s ease",
+                    display: "inline-block", lineHeight: 1,
+                  }}>⌄</span>
+                </button>
+
+                {isOpen && (
+                  <div className="group-section-body">
+                    {group.items.map((ex, idx) => (
+                      <div key={ex.id} className="exercise-item" style={idx > 0 ? { borderTop:"1px solid var(--border)" } : {}}>
+                        {editId === ex.id ? (
+                          <div style={{ flex:1, display:"flex", flexDirection:"column", gap:8, padding:"4px 0" }}>
+                            <select value={editGroup} onChange={e => setEditGroup(e.target.value)}>
+                              {GROUPS.map(g => <option key={g.id} value={g.id}>{g.emoji} {g.label}</option>)}
+                            </select>
+                            <div className="inline-edit">
+                              <input value={editName} onChange={e => setEditName(e.target.value)} onKeyDown={e => e.key === "Enter" && handleEdit(ex.id)} autoFocus />
+                              <button className="btn btn-primary btn-icon btn-sm" onClick={() => handleEdit(ex.id)}><Icon name="check" size={16} /></button>
+                              <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setEditId(null)}><Icon name="x" size={16} /></button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="exercise-name" style={{ flex:1, minWidth:0 }}>{ex.name}</div>
+                            <div className="card-actions">
+                              <button className="btn btn-ghost btn-icon btn-sm" onClick={() => startEdit(ex)}><Icon name="edit" size={15} /></button>
+                              <button className="btn btn-danger btn-icon btn-sm" onClick={() => setConfirm(ex.id)}><Icon name="trash" size={15} /></button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {confirm && (
         <div className="modal-overlay" onClick={() => setConfirm(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -495,7 +555,10 @@ function ExercisesPage({ exercises, onAdd, onEdit, onDelete }) {
 function LogPage({ exercises, onAdd }) {
   const [filterGroup, setFilterGroup] = useState("todos");
   const [exId, setExId] = useState("");
+  const [unilateral, setUnilateral] = useState(false);
   const [load, setLoad] = useState("");
+  const [loadR, setLoadR] = useState("");
+  const [loadL, setLoadL] = useState("");
   const [sets, setSets] = useState("3");
   const [reps, setReps] = useState("12");
   const [note, setNote] = useState("");
@@ -504,11 +567,33 @@ function LogPage({ exercises, onAdd }) {
   const filtered = filterGroup === "todos" ? exercises : exercises.filter(e => e.group === filterGroup);
   const usedGroups = ["todos", ...GROUPS.map(g => g.id).filter(id => exercises.some(e => e.group === id))];
 
+  const canSubmit = exId && (unilateral ? (loadR || loadL) : load);
+
   const submit = () => {
-    if (!exId || !load) return;
-    onAdd({ exerciseId: exId, load: parseFloat(load), sets: parseInt(sets), reps: parseInt(reps), note });
+    if (!canSubmit) return;
+    if (unilateral) {
+      onAdd({
+        exerciseId: exId,
+        load: null,
+        loadR: loadR ? parseFloat(loadR) : null,
+        loadL: loadL ? parseFloat(loadL) : null,
+        unilateral: true,
+        sets: parseInt(sets),
+        reps: parseInt(reps),
+        note,
+      });
+    } else {
+      onAdd({
+        exerciseId: exId,
+        load: parseFloat(load),
+        unilateral: false,
+        sets: parseInt(sets),
+        reps: parseInt(reps),
+        note,
+      });
+    }
     setDone(true); setTimeout(() => setDone(false), 1800);
-    setLoad(""); setNote(""); setExId("");
+    setLoad(""); setLoadR(""); setLoadL(""); setNote(""); setExId("");
   };
 
   if (exercises.length === 0) return (
@@ -534,10 +619,42 @@ function LogPage({ exercises, onAdd }) {
             {filtered.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
           </select>
         </div>
-        <div className="field">
-          <label>Carga (kg)</label>
-          <input type="number" placeholder="ex: 60" value={load} onChange={e => setLoad(e.target.value)} inputMode="decimal" />
+
+        {/* toggle bilateral / unilateral */}
+        <div className="toggle-row">
+          <button
+            className={"toggle-btn" + (!unilateral ? " active" : "")}
+            onClick={() => setUnilateral(false)}
+          >
+            Bilateral
+          </button>
+          <button
+            className={"toggle-btn" + (unilateral ? " active" : "")}
+            onClick={() => setUnilateral(true)}
+          >
+            Unilateral
+          </button>
         </div>
+
+        {/* carga */}
+        {!unilateral ? (
+          <div className="field">
+            <label>Carga (kg)</label>
+            <input type="number" placeholder="ex: 60" value={load} onChange={e => setLoad(e.target.value)} inputMode="decimal" />
+          </div>
+        ) : (
+          <div className="grid2">
+            <div className="field">
+              <label>Lado Direito (kg)</label>
+              <input type="number" placeholder="ex: 14" value={loadR} onChange={e => setLoadR(e.target.value)} inputMode="decimal" />
+            </div>
+            <div className="field">
+              <label>Lado Esquerdo (kg)</label>
+              <input type="number" placeholder="ex: 12" value={loadL} onChange={e => setLoadL(e.target.value)} inputMode="decimal" />
+            </div>
+          </div>
+        )}
+
         <div className="grid2">
           <div className="field">
             <label>Series</label>
@@ -555,8 +672,8 @@ function LogPage({ exercises, onAdd }) {
         <button
           className="btn btn-primary"
           onClick={submit}
-          disabled={!exId || !load}
-          style={done ? { background:"var(--green)", color:"#0a0a0f" } : (!exId || !load) ? { opacity:0.45 } : {}}
+          disabled={!canSubmit}
+          style={done ? { background:"var(--green)", color:"#0a0a0f" } : (!canSubmit) ? { opacity:0.45 } : {}}
         >
           {done ? <><Icon name="check" size={16} /> Registrado!</> : <><Icon name="save" size={16} /> Salvar treino</>}
         </button>
@@ -641,7 +758,13 @@ function HistoryPage({ logs, exercises, onDelete, profile }) {
                           </div>
                           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                             <div className="log-stats">
-                              <span className="log-badge green">{log.load} kg</span>
+                              {log.unilateral
+                                ? <>
+                                    {log.loadR != null && <span className="log-badge green">D: {log.loadR} kg</span>}
+                                    {log.loadL != null && <span className="log-badge green">E: {log.loadL} kg</span>}
+                                  </>
+                                : <span className="log-badge green">{log.load} kg</span>
+                              }
                               <span className="log-badge">{log.sets} series</span>
                               <span className="log-badge">{log.reps} reps</span>
                             </div>
@@ -769,12 +892,18 @@ function ProgressPage({ logs, exercises }) {
                   <div className="stat-row">
                     <div className="stat-chip">
                       <span className="label">Ultima carga</span>
-                      <span className="val green">{last.load}<span className="unit"> kg</span></span>
+                      {last.unilateral
+                        ? <><span className="val green" style={{fontSize:16}}>{last.loadR != null ? "D:"+last.loadR : "—"} / {last.loadL != null ? "E:"+last.loadL : "—"}<span className="unit"> kg</span></span></>
+                        : <span className="val green">{last.load}<span className="unit"> kg</span></span>
+                      }
                       {delta !== 0 && <span style={{ fontSize:11, color: delta > 0 ? "var(--green)" : "var(--red)" }}>{delta > 0 ? "+" : ""}{delta} kg vs anterior</span>}
                     </div>
                     <div className="stat-chip">
                       <span className="label">Melhor carga</span>
-                      <span className="val yellow">{best.load}<span className="unit"> kg</span></span>
+                      {best.unilateral
+                        ? <span className="val yellow" style={{fontSize:16}}>{best.loadR != null ? "D:"+best.loadR : "—"} / {best.loadL != null ? "E:"+best.loadL : "—"}<span className="unit"> kg</span></span>
+                        : <span className="val yellow">{best.load}<span className="unit"> kg</span></span>
+                      }
                       <span style={{ fontSize:11, color:"var(--text3)" }}>{fmtDate(best.createdAt)}</span>
                     </div>
                   </div>
@@ -787,7 +916,10 @@ function ProgressPage({ logs, exercises }) {
                           <div key={e.id} className="timeline-row">
                             <span className="timeline-date">{fmtDate(e.createdAt)}</span>
                             <span className="timeline-val">
-                              {e.load} kg · {e.sets}x{e.reps}
+                              {e.unilateral
+                              ? (e.loadR != null ? "D:"+e.loadR : "") + (e.loadR != null && e.loadL != null ? " / " : "") + (e.loadL != null ? "E:"+e.loadL : "") + " kg · " + e.sets + "x" + e.reps
+                              : e.load + " kg · " + e.sets + "x" + e.reps
+                            }
                               {e.id === best.id && <span className="pr-badge">PR</span>}
                             </span>
                           </div>
