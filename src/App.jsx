@@ -272,6 +272,9 @@ const css = `
   .set-badge.feeder { background: rgba(96,165,250,0.12); color: #60a5fa; }
   .set-badge.work   { background: rgba(251,191,36,0.12);  color: #fbbf24; }
   .set-badge.top    { background: rgba(248,113,113,0.12); color: #f87171; }
+  .backup-section { width: 100%; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .backup-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .backup-sub { font-size: 12px; color: var(--text2); line-height: 1.5; }
 `;
 
 function Toast({ msg, type, onDone }) {
@@ -284,6 +287,10 @@ function ProfilesScreen({ onSelect }) {
   const [newName, setNewName] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [confirmDel, setConfirmDel] = useState(null);
+  const [toast, setToast] = useState(null);
+  const importRef = useState(() => typeof document !== "undefined" ? null : null);
+
+  const notify = (msg, type = "ok") => setToast({ msg, type });
 
   const createProfile = () => {
     const name = newName.trim();
@@ -303,6 +310,56 @@ function ProfilesScreen({ onSelect }) {
     localStorage.removeItem("exercises_" + id);
     localStorage.removeItem("logs_" + id);
     setConfirmDel(null);
+  };
+
+  const exportBackup = () => {
+    const allProfiles = STORE.get("profiles") || [];
+    const backup = {
+      version: 1,
+      exportedAt: now(),
+      profiles: allProfiles.map(p => ({
+        profile: p,
+        exercises: STORE.get("exercises_" + p.id) || [],
+        logs: STORE.get("logs_" + p.id) || [],
+      })),
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    a.href = url; a.download = "fitlog_backup_" + date + ".json"; a.click();
+    URL.revokeObjectURL(url);
+    notify("Backup exportado com sucesso! 💾");
+  };
+
+  const importBackup = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.version || !Array.isArray(data.profiles)) throw new Error("Formato invalido");
+        let imported = 0;
+        const currentProfiles = STORE.get("profiles") || [];
+        const updatedProfiles = [...currentProfiles];
+        data.profiles.forEach(({ profile, exercises, logs }) => {
+          if (!profile?.id || !profile?.name) return;
+          const exists = updatedProfiles.find(p => p.id === profile.id);
+          if (!exists) updatedProfiles.push(profile);
+          STORE.set("exercises_" + profile.id, exercises || []);
+          STORE.set("logs_" + profile.id, logs || []);
+          imported++;
+        });
+        STORE.set("profiles", updatedProfiles);
+        setProfiles(updatedProfiles);
+        notify(imported + " perfil(is) restaurado(s)! ✅");
+      } catch {
+        notify("Arquivo invalido ou corrompido.", "error");
+      }
+      e.target.value = "";
+    };
+    reader.readAsText(file);
   };
 
   return (
@@ -347,7 +404,23 @@ function ProfilesScreen({ onSelect }) {
         ) : (
           <button className="btn btn-primary" style={{ width: "100%" }} onClick={() => setShowForm(true)}><Icon name="plus" size={18} /> Novo perfil</button>
         )}
+
+        {/* Backup / Restore */}
+        <div className="backup-section">
+          <p className="backup-title">💾 Backup dos dados</p>
+          <p className="backup-sub">Exporte para salvar seus dados e importe para restaurar em qualquer dispositivo.</p>
+          <div style={{ display:"flex", gap:10 }}>
+            <button className="btn btn-ghost" style={{ flex:1 }} onClick={exportBackup}>
+              <Icon name="download" size={16} /> Exportar
+            </button>
+            <label className="btn btn-ghost" style={{ flex:1, cursor:"pointer" }}>
+              <Icon name="save" size={16} /> Importar
+              <input type="file" accept=".json" style={{ display:"none" }} onChange={importBackup} />
+            </label>
+          </div>
+        </div>
       </div>
+      {toast && <Toast msg={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
       {confirmDel && (
         <div className="modal-overlay" onClick={() => setConfirmDel(null)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -563,7 +636,7 @@ function ExercisesPage({ exercises, onAdd, onEdit, onDelete }) {
   );
 }
 
-function SetBlock({ label, color, emoji, value, onChange, valueR, onChangeR, valueL, onChangeL, mode, minutes, onChangeMinutes, sets, onSetsChange, reps, onRepsChange }) {
+function SetBlock({ label, color, emoji, value, onChange, valueR, onChangeR, valueL, onChangeL, sets, onSetsChange, reps, onRepsChange }) {
   return (
     <div className="set-block" style={{ "--set-color": color }}>
       <div className="set-block-header">
@@ -571,13 +644,13 @@ function SetBlock({ label, color, emoji, value, onChange, valueR, onChangeR, val
         <span className="set-block-label">{label}</span>
       </div>
       <div className="set-block-body">
-        {mode === "bilateral" && (
+        {value !== undefined && (
           <div className="field">
             <label>Carga (kg)</label>
             <input type="number" placeholder="0" value={value} onChange={e => onChange(e.target.value)} inputMode="decimal" />
           </div>
         )}
-        {mode === "unilateral" && (
+        {valueR !== undefined && (
           <div className="grid2">
             <div className="field">
               <label>Direito (kg)</label>
@@ -589,24 +662,16 @@ function SetBlock({ label, color, emoji, value, onChange, valueR, onChangeR, val
             </div>
           </div>
         )}
-        {mode === "tempo" && (
+        <div className="grid2">
           <div className="field">
-            <label>Duracao (min)</label>
-            <input type="number" placeholder="0" value={minutes} onChange={e => onChangeMinutes(e.target.value)} inputMode="decimal" />
+            <label>Series</label>
+            <input type="number" placeholder="3" value={sets} onChange={e => onSetsChange(e.target.value)} inputMode="numeric" />
           </div>
-        )}
-        {mode !== "tempo" && (
-          <div className="grid2">
-            <div className="field">
-              <label>Series</label>
-              <input type="number" placeholder="3" value={sets} onChange={e => onSetsChange(e.target.value)} inputMode="numeric" />
-            </div>
-            <div className="field">
-              <label>Repeticoes</label>
-              <input type="number" placeholder="12" value={reps} onChange={e => onRepsChange(e.target.value)} inputMode="numeric" />
-            </div>
+          <div className="field">
+            <label>Repeticoes</label>
+            <input type="number" placeholder="12" value={reps} onChange={e => onRepsChange(e.target.value)} inputMode="numeric" />
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -654,7 +719,7 @@ function LogPage({ exercises, onAdd }) {
   const hasAnyLoad = () => {
     if (mode === "bilateral")  return feederLoad || workLoad || topLoad;
     if (mode === "unilateral") return feederLoadR || feederLoadL || workLoadR || workLoadL || topLoadR || topLoadL;
-    if (mode === "tempo")      return feederMins || workMins || topMins;
+    if (mode === "tempo")      return feederMins;
     return false;
   };
 
@@ -700,10 +765,7 @@ function LogPage({ exercises, onAdd }) {
       onAdd({
         ...base,
         load: null,
-        minutes: parseF(workMins) ?? parseF(topMins) ?? parseF(feederMins),
-        feederMins: parseF(feederMins),
-        workMins:   parseF(workMins),
-        topMins:    parseF(topMins),
+        minutes: parseF(feederMins),
       });
     }
     setDone(true); setTimeout(() => setDone(false), 1800);
@@ -740,37 +802,59 @@ function LogPage({ exercises, onAdd }) {
           <button className={"toggle-btn" + (mode === "tempo"      ? " active" : "")} onClick={() => setMode("tempo")}>Tempo</button>
         </div>
 
-        {/* Sets */}
-        <SetBlock
-          label="Feeder Set" emoji="🔹" color="#60a5fa"
-          mode={mode}
-          value={feederLoad}    onChange={setFeederLoad}
-          valueR={feederLoadR}  onChangeR={setFeederLoadR}
-          valueL={feederLoadL}  onChangeL={setFeederLoadL}
-          minutes={feederMins}  onChangeMinutes={setFeederMins}
-          sets={feederSets} onSetsChange={setFeederSets}
-          reps={feederReps} onRepsChange={setFeederReps}
-        />
-        <SetBlock
-          label="Work Set" emoji="🔶" color="#fbbf24"
-          mode={mode}
-          value={workLoad}    onChange={setWorkLoad}
-          valueR={workLoadR}  onChangeR={setWorkLoadR}
-          valueL={workLoadL}  onChangeL={setWorkLoadL}
-          minutes={workMins}  onChangeMinutes={setWorkMins}
-          sets={workSets} onSetsChange={setWorkSets}
-          reps={workReps} onRepsChange={setWorkReps}
-        />
-        <SetBlock
-          label="Top Set" emoji="🔴" color="#f87171"
-          mode={mode}
-          value={topLoad}    onChange={setTopLoad}
-          valueR={topLoadR}  onChangeR={setTopLoadR}
-          valueL={topLoadL}  onChangeL={setTopLoadL}
-          minutes={topMins}  onChangeMinutes={setTopMins}
-          sets={topSets} onSetsChange={setTopSets}
-          reps={topReps} onRepsChange={setTopReps}
-        />
+        {/* Sets — só para bilateral e unilateral */}
+        {mode === "bilateral" && (<>
+          <SetBlock
+            label="Feeder Set" emoji="🔹" color="#60a5fa"
+            value={feederLoad} onChange={setFeederLoad}
+            sets={feederSets} onSetsChange={setFeederSets}
+            reps={feederReps} onRepsChange={setFeederReps}
+          />
+          <SetBlock
+            label="Work Set" emoji="🔶" color="#fbbf24"
+            value={workLoad} onChange={setWorkLoad}
+            sets={workSets} onSetsChange={setWorkSets}
+            reps={workReps} onRepsChange={setWorkReps}
+          />
+          <SetBlock
+            label="Top Set" emoji="🔴" color="#f87171"
+            value={topLoad} onChange={setTopLoad}
+            sets={topSets} onSetsChange={setTopSets}
+            reps={topReps} onRepsChange={setTopReps}
+          />
+        </>)}
+
+        {mode === "unilateral" && (<>
+          <SetBlock
+            label="Feeder Set" emoji="🔹" color="#60a5fa"
+            valueR={feederLoadR} onChangeR={setFeederLoadR}
+            valueL={feederLoadL} onChangeL={setFeederLoadL}
+            sets={feederSets} onSetsChange={setFeederSets}
+            reps={feederReps} onRepsChange={setFeederReps}
+          />
+          <SetBlock
+            label="Work Set" emoji="🔶" color="#fbbf24"
+            valueR={workLoadR} onChangeR={setWorkLoadR}
+            valueL={workLoadL} onChangeL={setWorkLoadL}
+            sets={workSets} onSetsChange={setWorkSets}
+            reps={workReps} onRepsChange={setWorkReps}
+          />
+          <SetBlock
+            label="Top Set" emoji="🔴" color="#f87171"
+            valueR={topLoadR} onChangeR={setTopLoadR}
+            valueL={topLoadL} onChangeL={setTopLoadL}
+            sets={topSets} onSetsChange={setTopSets}
+            reps={topReps} onRepsChange={setTopReps}
+          />
+        </>)}
+
+        {/* Tempo — campo simples */}
+        {mode === "tempo" && (
+          <div className="field">
+            <label>Duracao (minutos)</label>
+            <input type="number" placeholder="ex: 30" value={feederMins} onChange={e => setFeederMins(e.target.value)} inputMode="decimal" />
+          </div>
+        )}
 
         <div className="field">
           <label>Observacao (opcional)</label>
@@ -794,6 +878,20 @@ function HistoryPage({ logs, exercises, onDelete, profile }) {
   const [confirm, setConfirm] = useState(null);
   const [openDay, setOpenDay] = useState(null);
   const exMap = Object.fromEntries(exercises.map(e => [e.id, { name: e.name, group: e.group }]));
+
+  const exportBackupSingle = () => {
+    const backup = {
+      version: 1,
+      exportedAt: now(),
+      profiles: [{ profile, exercises, logs }],
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    a.href = url; a.download = "fitlog_" + profile.name + "_" + date + ".json"; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const byWeekday = {};
   WEEKDAY_ORDER.forEach(d => { byWeekday[d] = []; });
@@ -829,7 +927,10 @@ function HistoryPage({ logs, exercises, onDelete, profile }) {
   return (
     <div className="page">
       <p className="section-title">{logs.length} registro(s) no total</p>
-      <button className="btn btn-green" onClick={exportCSV}><Icon name="download" size={16} /> Exportar planilha (.csv)</button>
+      <div style={{ display:"flex", gap:8 }}>
+        <button className="btn btn-green" style={{ flex:1 }} onClick={exportCSV}><Icon name="download" size={16} /> Exportar .csv</button>
+        <button className="btn btn-ghost" style={{ flex:1 }} onClick={exportBackupSingle}><Icon name="save" size={16} /> Backup .json</button>
+      </div>
       {WEEKDAY_ORDER.map(d => {
         const dayLogs = byWeekday[d];
         if (dayLogs.length === 0) return null;
@@ -904,12 +1005,7 @@ function HistoryPage({ logs, exercises, onDelete, profile }) {
                               )}
                               {log.mode === "tempo" && (
                                 <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-                                  {log.feederMins != null && <span className="set-badge feeder">🔹 Feeder {log.feederMins} min</span>}
-                                  {log.workMins   != null && <span className="set-badge work">🔶 Work {log.workMins} min</span>}
-                                  {log.topMins    != null && <span className="set-badge top">🔴 Top {log.topMins} min</span>}
-                                  {log.feederMins == null && log.workMins == null && log.topMins == null && (
-                                    <span className="log-badge green">⏱ {log.minutes} min</span>
-                                  )}
+                                  <span className="log-badge green">⏱ {log.minutes} min</span>
                                 </div>
                               )}
                             </div>
