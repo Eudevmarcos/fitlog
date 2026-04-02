@@ -263,6 +263,15 @@ const css = `
   .rpg-howto { display: flex; flex-direction: column; gap: 5px; background: var(--surface2); border-radius: var(--radius-sm); padding: 12px; }
   .rpg-howto-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text3); margin-bottom: 4px; }
   .rpg-howto span { font-size: 13px; color: var(--text2); }
+  .set-block { border: 1.5px solid var(--set-color, var(--border)); border-radius: var(--radius-sm); overflow: hidden; }
+  .set-block-header { display: flex; align-items: center; gap: 8px; padding: 9px 14px; background: color-mix(in srgb, var(--set-color, var(--border)) 12%, transparent); border-bottom: 1px solid color-mix(in srgb, var(--set-color, var(--border)) 30%, transparent); }
+  .set-block-emoji { font-size: 15px; line-height: 1; }
+  .set-block-label { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: var(--set-color, var(--text2)); }
+  .set-block-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; background: var(--bg); }
+  .set-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 5px; }
+  .set-badge.feeder { background: rgba(96,165,250,0.12); color: #60a5fa; }
+  .set-badge.work   { background: rgba(251,191,36,0.12);  color: #fbbf24; }
+  .set-badge.top    { background: rgba(248,113,113,0.12); color: #f87171; }
 `;
 
 function Toast({ msg, type, onDone }) {
@@ -554,38 +563,148 @@ function ExercisesPage({ exercises, onAdd, onEdit, onDelete }) {
   );
 }
 
+function SetBlock({ label, color, emoji, value, onChange, valueR, onChangeR, valueL, onChangeL, mode, minutes, onChangeMinutes, sets, onSetsChange, reps, onRepsChange }) {
+  return (
+    <div className="set-block" style={{ "--set-color": color }}>
+      <div className="set-block-header">
+        <span className="set-block-emoji">{emoji}</span>
+        <span className="set-block-label">{label}</span>
+      </div>
+      <div className="set-block-body">
+        {mode === "bilateral" && (
+          <div className="field">
+            <label>Carga (kg)</label>
+            <input type="number" placeholder="0" value={value} onChange={e => onChange(e.target.value)} inputMode="decimal" />
+          </div>
+        )}
+        {mode === "unilateral" && (
+          <div className="grid2">
+            <div className="field">
+              <label>Direito (kg)</label>
+              <input type="number" placeholder="0" value={valueR} onChange={e => onChangeR(e.target.value)} inputMode="decimal" />
+            </div>
+            <div className="field">
+              <label>Esquerdo (kg)</label>
+              <input type="number" placeholder="0" value={valueL} onChange={e => onChangeL(e.target.value)} inputMode="decimal" />
+            </div>
+          </div>
+        )}
+        {mode === "tempo" && (
+          <div className="field">
+            <label>Duracao (min)</label>
+            <input type="number" placeholder="0" value={minutes} onChange={e => onChangeMinutes(e.target.value)} inputMode="decimal" />
+          </div>
+        )}
+        {mode !== "tempo" && (
+          <div className="grid2">
+            <div className="field">
+              <label>Series</label>
+              <input type="number" placeholder="3" value={sets} onChange={e => onSetsChange(e.target.value)} inputMode="numeric" />
+            </div>
+            <div className="field">
+              <label>Repeticoes</label>
+              <input type="number" placeholder="12" value={reps} onChange={e => onRepsChange(e.target.value)} inputMode="numeric" />
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function LogPage({ exercises, onAdd }) {
   const [filterGroup, setFilterGroup] = useState("todos");
   const [exId, setExId] = useState("");
-  const [mode, setMode] = useState("bilateral"); // bilateral | unilateral | tempo
-  const [load, setLoad] = useState("");
-  const [loadR, setLoadR] = useState("");
-  const [loadL, setLoadL] = useState("");
-  const [minutes, setMinutes] = useState("");
-  const [sets, setSets] = useState("3");
-  const [reps, setReps] = useState("12");
+  const [mode, setMode] = useState("bilateral");
+
+  // Feeder Set
+  const [feederLoad, setFeederLoad]   = useState("");
+  const [feederLoadR, setFeederLoadR] = useState("");
+  const [feederLoadL, setFeederLoadL] = useState("");
+  const [feederMins, setFeederMins]   = useState("");
+
+  // Work Set
+  const [workLoad, setWorkLoad]   = useState("");
+  const [workLoadR, setWorkLoadR] = useState("");
+  const [workLoadL, setWorkLoadL] = useState("");
+  const [workMins, setWorkMins]   = useState("");
+
+  // Top Set
+  const [topLoad, setTopLoad]   = useState("");
+  const [topLoadR, setTopLoadR] = useState("");
+  const [topLoadL, setTopLoadL] = useState("");
+  const [topMins, setTopMins]   = useState("");
+
+  // Feeder Set series/reps
+  const [feederSets, setFeederSets] = useState("3");
+  const [feederReps, setFeederReps] = useState("12");
+  // Work Set series/reps
+  const [workSets, setWorkSets] = useState("3");
+  const [workReps, setWorkReps] = useState("12");
+  // Top Set series/reps
+  const [topSets, setTopSets] = useState("1");
+  const [topReps, setTopReps] = useState("12");
+
   const [note, setNote] = useState("");
   const [done, setDone] = useState(false);
 
   const filtered = filterGroup === "todos" ? exercises : exercises.filter(e => e.group === filterGroup);
   const usedGroups = ["todos", ...GROUPS.map(g => g.id).filter(id => exercises.some(e => e.group === id))];
 
-  const canSubmit = exId && (
-    mode === "bilateral" ? load :
-    mode === "unilateral" ? (loadR || loadL) :
-    minutes
-  );
+  const hasAnyLoad = () => {
+    if (mode === "bilateral")  return feederLoad || workLoad || topLoad;
+    if (mode === "unilateral") return feederLoadR || feederLoadL || workLoadR || workLoadL || topLoadR || topLoadL;
+    if (mode === "tempo")      return feederMins || workMins || topMins;
+    return false;
+  };
 
-  const clearFields = () => { setLoad(""); setLoadR(""); setLoadL(""); setMinutes(""); setNote(""); setExId(""); };
+  const canSubmit = exId && hasAnyLoad();
+
+  const clearFields = () => {
+    setFeederLoad(""); setFeederLoadR(""); setFeederLoadL(""); setFeederMins("");
+    setWorkLoad("");   setWorkLoadR("");   setWorkLoadL("");   setWorkMins("");
+    setTopLoad("");    setTopLoadR("");    setTopLoadL("");    setTopMins("");
+    setFeederSets("3"); setFeederReps("12");
+    setWorkSets("3");   setWorkReps("12");
+    setTopSets("1");    setTopReps("12");
+    setNote(""); setExId("");
+  };
+
+  const parseF = (v) => v !== "" ? parseFloat(v) : null;
 
   const submit = () => {
     if (!canSubmit) return;
+    const base = { exerciseId: exId, mode, note };
+
     if (mode === "bilateral") {
-      onAdd({ exerciseId: exId, mode: "bilateral", load: parseFloat(load), sets: parseInt(sets), reps: parseInt(reps), note });
+      onAdd({
+        ...base,
+        load: parseF(workLoad) ?? parseF(topLoad) ?? parseF(feederLoad),
+        sets: parseInt(workSets || feederSets), reps: parseInt(workReps || feederReps),
+        feederLoad: parseF(feederLoad), feederSets: parseInt(feederSets), feederReps: parseInt(feederReps),
+        workLoad:   parseF(workLoad),   workSets:   parseInt(workSets),   workReps:   parseInt(workReps),
+        topLoad:    parseF(topLoad),    topSets:    parseInt(topSets),    topReps:    parseInt(topReps),
+      });
     } else if (mode === "unilateral") {
-      onAdd({ exerciseId: exId, mode: "unilateral", load: null, loadR: loadR ? parseFloat(loadR) : null, loadL: loadL ? parseFloat(loadL) : null, sets: parseInt(sets), reps: parseInt(reps), note });
+      onAdd({
+        ...base,
+        load: null,
+        sets: parseInt(workSets || feederSets), reps: parseInt(workReps || feederReps),
+        loadR: parseF(workLoadR) ?? parseF(topLoadR) ?? parseF(feederLoadR),
+        loadL: parseF(workLoadL) ?? parseF(topLoadL) ?? parseF(feederLoadL),
+        feederLoadR: parseF(feederLoadR), feederLoadL: parseF(feederLoadL), feederSets: parseInt(feederSets), feederReps: parseInt(feederReps),
+        workLoadR:   parseF(workLoadR),   workLoadL:   parseF(workLoadL),   workSets:   parseInt(workSets),   workReps:   parseInt(workReps),
+        topLoadR:    parseF(topLoadR),    topLoadL:    parseF(topLoadL),    topSets:    parseInt(topSets),    topReps:    parseInt(topReps),
+      });
     } else {
-      onAdd({ exerciseId: exId, mode: "tempo", load: null, minutes: parseFloat(minutes), note });
+      onAdd({
+        ...base,
+        load: null,
+        minutes: parseF(workMins) ?? parseF(topMins) ?? parseF(feederMins),
+        feederMins: parseF(feederMins),
+        workMins:   parseF(workMins),
+        topMins:    parseF(topMins),
+      });
     }
     setDone(true); setTimeout(() => setDone(false), 1800);
     clearFields();
@@ -615,54 +734,43 @@ function LogPage({ exercises, onAdd }) {
           </select>
         </div>
 
-        {/* toggle de modo */}
         <div className="toggle-row">
           <button className={"toggle-btn" + (mode === "bilateral"  ? " active" : "")} onClick={() => setMode("bilateral")}>Bilateral</button>
           <button className={"toggle-btn" + (mode === "unilateral" ? " active" : "")} onClick={() => setMode("unilateral")}>Unilateral</button>
           <button className={"toggle-btn" + (mode === "tempo"      ? " active" : "")} onClick={() => setMode("tempo")}>Tempo</button>
         </div>
 
-        {/* campos conforme modo */}
-        {mode === "bilateral" && (
-          <div className="field">
-            <label>Carga (kg)</label>
-            <input type="number" placeholder="ex: 60" value={load} onChange={e => setLoad(e.target.value)} inputMode="decimal" />
-          </div>
-        )}
-
-        {mode === "unilateral" && (
-          <div className="grid2">
-            <div className="field">
-              <label>Lado Direito (kg)</label>
-              <input type="number" placeholder="ex: 14" value={loadR} onChange={e => setLoadR(e.target.value)} inputMode="decimal" />
-            </div>
-            <div className="field">
-              <label>Lado Esquerdo (kg)</label>
-              <input type="number" placeholder="ex: 12" value={loadL} onChange={e => setLoadL(e.target.value)} inputMode="decimal" />
-            </div>
-          </div>
-        )}
-
-        {mode === "tempo" && (
-          <div className="field">
-            <label>Duracao (minutos)</label>
-            <input type="number" placeholder="ex: 30" value={minutes} onChange={e => setMinutes(e.target.value)} inputMode="decimal" />
-          </div>
-        )}
-
-        {/* series e reps — so para bilateral e unilateral */}
-        {mode !== "tempo" && (
-          <div className="grid2">
-            <div className="field">
-              <label>Series</label>
-              <input type="number" placeholder="3" value={sets} onChange={e => setSets(e.target.value)} inputMode="numeric" />
-            </div>
-            <div className="field">
-              <label>Repeticoes</label>
-              <input type="number" placeholder="12" value={reps} onChange={e => setReps(e.target.value)} inputMode="numeric" />
-            </div>
-          </div>
-        )}
+        {/* Sets */}
+        <SetBlock
+          label="Feeder Set" emoji="🔹" color="#60a5fa"
+          mode={mode}
+          value={feederLoad}    onChange={setFeederLoad}
+          valueR={feederLoadR}  onChangeR={setFeederLoadR}
+          valueL={feederLoadL}  onChangeL={setFeederLoadL}
+          minutes={feederMins}  onChangeMinutes={setFeederMins}
+          sets={feederSets} onSetsChange={setFeederSets}
+          reps={feederReps} onRepsChange={setFeederReps}
+        />
+        <SetBlock
+          label="Work Set" emoji="🔶" color="#fbbf24"
+          mode={mode}
+          value={workLoad}    onChange={setWorkLoad}
+          valueR={workLoadR}  onChangeR={setWorkLoadR}
+          valueL={workLoadL}  onChangeL={setWorkLoadL}
+          minutes={workMins}  onChangeMinutes={setWorkMins}
+          sets={workSets} onSetsChange={setWorkSets}
+          reps={workReps} onRepsChange={setWorkReps}
+        />
+        <SetBlock
+          label="Top Set" emoji="🔴" color="#f87171"
+          mode={mode}
+          value={topLoad}    onChange={setTopLoad}
+          valueR={topLoadR}  onChangeR={setTopLoadR}
+          valueL={topLoadL}  onChangeL={setTopLoadL}
+          minutes={topMins}  onChangeMinutes={setTopMins}
+          sets={topSets} onSetsChange={setTopSets}
+          reps={topReps} onRepsChange={setTopReps}
+        />
 
         <div className="field">
           <label>Observacao (opcional)</label>
@@ -756,21 +864,56 @@ function HistoryPage({ logs, exercises, onDelete, profile }) {
                             </div>
                             <div className="log-date">{fmtTime(log.createdAt)}</div>
                           </div>
-                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                            <div className="log-stats">
-                              {log.mode === "tempo"
-                                ? <span className="log-badge green">⏱ {log.minutes} min</span>
-                                : log.mode === "unilateral"
-                                  ? <>
+                          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+                            <div className="log-stats" style={{ flexDirection:"column", gap:6, alignItems:"flex-start" }}>
+                              {/* Feeder / Work / Top Set badges */}
+                              {log.mode === "bilateral" && (
+                                <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                                  {log.feederLoad != null && <span className="set-badge feeder">🔹 Feeder {log.feederLoad} kg · {log.feederSets}x{log.feederReps}</span>}
+                                  {log.workLoad   != null && <span className="set-badge work">🔶 Work {log.workLoad} kg · {log.workSets}x{log.workReps}</span>}
+                                  {log.topLoad    != null && <span className="set-badge top">🔴 Top {log.topLoad} kg · {log.topSets}x{log.topReps}</span>}
+                                  {log.feederLoad == null && log.workLoad == null && log.topLoad == null && (
+                                    <div style={{ display:"flex", gap:5 }}>
+                                      <span className="log-badge green">{log.load} kg</span>
+                                      <span className="log-badge">{log.sets} series</span>
+                                      <span className="log-badge">{log.reps} reps</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {log.mode === "unilateral" && (
+                                <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                                  {(log.feederLoadR != null || log.feederLoadL != null) && (
+                                    <span className="set-badge feeder">🔹 Feeder {log.feederLoadR != null ? "D:"+log.feederLoadR : ""}{log.feederLoadR != null && log.feederLoadL != null ? "/" : ""}{log.feederLoadL != null ? "E:"+log.feederLoadL : ""} kg · {log.feederSets}x{log.feederReps}</span>
+                                  )}
+                                  {(log.workLoadR != null || log.workLoadL != null) && (
+                                    <span className="set-badge work">🔶 Work {log.workLoadR != null ? "D:"+log.workLoadR : ""}{log.workLoadR != null && log.workLoadL != null ? "/" : ""}{log.workLoadL != null ? "E:"+log.workLoadL : ""} kg · {log.workSets}x{log.workReps}</span>
+                                  )}
+                                  {(log.topLoadR != null || log.topLoadL != null) && (
+                                    <span className="set-badge top">🔴 Top {log.topLoadR != null ? "D:"+log.topLoadR : ""}{log.topLoadR != null && log.topLoadL != null ? "/" : ""}{log.topLoadL != null ? "E:"+log.topLoadL : ""} kg · {log.topSets}x{log.topReps}</span>
+                                  )}
+                                  {log.feederLoadR == null && log.feederLoadL == null && log.workLoadR == null && log.workLoadL == null && log.topLoadR == null && log.topLoadL == null && (
+                                    <div style={{ display:"flex", gap:5 }}>
                                       {log.loadR != null && <span className="log-badge green">D: {log.loadR} kg</span>}
                                       {log.loadL != null && <span className="log-badge green">E: {log.loadL} kg</span>}
-                                    </>
-                                  : <span className="log-badge green">{log.load} kg</span>
-                              }
-                              {log.mode !== "tempo" && <span className="log-badge">{log.sets} series</span>}
-                              {log.mode !== "tempo" && <span className="log-badge">{log.reps} reps</span>}
+                                      <span className="log-badge">{log.sets} series</span>
+                                      <span className="log-badge">{log.reps} reps</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                              {log.mode === "tempo" && (
+                                <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                                  {log.feederMins != null && <span className="set-badge feeder">🔹 Feeder {log.feederMins} min</span>}
+                                  {log.workMins   != null && <span className="set-badge work">🔶 Work {log.workMins} min</span>}
+                                  {log.topMins    != null && <span className="set-badge top">🔴 Top {log.topMins} min</span>}
+                                  {log.feederMins == null && log.workMins == null && log.topMins == null && (
+                                    <span className="log-badge green">⏱ {log.minutes} min</span>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            <button className="btn btn-danger btn-icon btn-sm" onClick={() => setConfirm(log.id)}><Icon name="trash" size={14} /></button>
+                            <button className="btn btn-danger btn-icon btn-sm" style={{ flexShrink:0 }} onClick={() => setConfirm(log.id)}><Icon name="trash" size={14} /></button>
                           </div>
                           {log.note && <p style={{ fontSize:12, color:"var(--text2)", marginTop:8 }}>📝 {log.note}</p>}
                         </div>
