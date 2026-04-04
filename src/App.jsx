@@ -99,6 +99,7 @@ const Icon = ({ name, size = 22 }) => {
     chart: "M18 20V10M12 20V4M6 20v-6",
     download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3",
     logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+    clipboard: "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 0-1-1h4a2 2 0 0 0-1 1M12 12h3M12 16h3M9 12h.01M9 16h.01",
     users: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
   };
   return (
@@ -275,6 +276,24 @@ const css = `
   .backup-section { width: 100%; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
   .backup-title { font-size: 14px; font-weight: 700; color: var(--text); }
   .backup-sub { font-size: 12px; color: var(--text2); line-height: 1.5; }
+  .ficha-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: border-color var(--transition); }
+  .ficha-card-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; cursor: pointer; }
+  .ficha-card-header:active { background: var(--surface2); }
+  .ficha-color-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .ficha-name { font-size: 16px; font-weight: 700; flex: 1; }
+  .ficha-meta { font-size: 12px; color: var(--text2); }
+  .ficha-body { border-top: 1px solid var(--border); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .ficha-ex-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: var(--bg); border-radius: var(--radius-sm); }
+  .ficha-ex-order { width: 22px; height: 22px; border-radius: 6px; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--text2); flex-shrink: 0; margin-top: 1px; }
+  .ficha-ex-info { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+  .ficha-ex-name { font-size: 14px; font-weight: 600; }
+  .ficha-ex-obs { font-size: 12px; color: var(--text2); }
+  .ficha-ex-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: var(--text2); background: var(--surface2); padding: 2px 7px; border-radius: 5px; }
+  .ficha-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .color-picker { display: flex; gap: 8px; flex-wrap: wrap; }
+  .color-dot-btn { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.15s ease; flex-shrink: 0; }
+  .color-dot-btn.selected { border-color: white; transform: scale(1.15); }
+  .drag-handle { color: var(--text3); cursor: grab; padding: 2px 4px; font-size: 16px; line-height: 1; flex-shrink: 0; margin-top: 2px; }
 `;
 
 function Toast({ msg, type, onDone }) {
@@ -321,6 +340,7 @@ function ProfilesScreen({ onSelect }) {
         profile: p,
         exercises: STORE.get("exercises_" + p.id) || [],
         logs: STORE.get("logs_" + p.id) || [],
+        fichas: STORE.get("fichas_" + p.id) || [],
       })),
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
@@ -349,6 +369,7 @@ function ProfilesScreen({ onSelect }) {
           if (!exists) updatedProfiles.push(profile);
           STORE.set("exercises_" + profile.id, exercises || []);
           STORE.set("logs_" + profile.id, logs || []);
+          STORE.set("fichas_" + profile.id, fichas || []);
           imported++;
         });
         STORE.set("profiles", updatedProfiles);
@@ -442,19 +463,28 @@ export default function App() {
   const [logs, setLogs] = useState([]);
   const [toast, setToast] = useState(null);
 
-  useEffect(() => {
-    if (profile) {
-      setExercises(STORE.get("exercises_" + profile.id) || []);
-      setLogs(STORE.get("logs_" + profile.id) || []);
-    }
-  }, [profile]);
-
   const selectProfile = (p) => { STORE.set("currentProfile", p); setProfile(p); setTab("exercises"); };
   const logout = () => { STORE.set("currentProfile", null); setProfile(null); setExercises([]); setLogs([]); };
   const notify = (msg, type = "ok") => setToast({ msg, type });
 
   const saveExercises = (list) => { setExercises(list); STORE.set("exercises_" + profile.id, list); };
   const saveLogs = (list) => { setLogs(list); STORE.set("logs_" + profile.id, list); };
+
+  const [fichas, setFichas] = useState([]);
+
+  useEffect(() => {
+    if (profile) {
+      setExercises(STORE.get("exercises_" + profile.id) || []);
+      setLogs(STORE.get("logs_" + profile.id) || []);
+      setFichas(STORE.get("fichas_" + profile.id) || []);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
+
+  const saveFichas = (list) => { setFichas(list); STORE.set("fichas_" + profile.id, list); };
+  const addFicha = (ficha) => { saveFichas([...fichas, { id: uid(), ...ficha, createdAt: now() }]); notify("Ficha criada! 📋"); };
+  const editFicha = (id, data) => { saveFichas(fichas.map(f => f.id === id ? { ...f, ...data } : f)); notify("Ficha atualizada!"); };
+  const deleteFicha = (id) => { saveFichas(fichas.filter(f => f.id !== id)); notify("Ficha removida"); };
 
   const addExercise = (name, group) => { saveExercises([...exercises, { id: uid(), name, group, createdAt: now() }]); notify("Exercicio adicionado!"); };
   const editExercise = (id, name, group) => { saveExercises(exercises.map(e => e.id === id ? { ...e, name, group } : e)); notify("Atualizado!"); };
@@ -464,7 +494,7 @@ export default function App() {
 
   if (!profile) return <ProfilesScreen onSelect={selectProfile} />;
 
-  const titles = { exercises: "Exercicios", log: "Registrar Treino", history: "Historico", progress: "Evolucao" };
+  const titles = { exercises: "Exercicios", log: "Registrar Treino", history: "Historico", progress: "Evolucao", fichas: "Fichas de Treino" };
 
   return (
     <>
@@ -492,15 +522,17 @@ export default function App() {
 
         {tab === "exercises" && <ExercisesPage exercises={exercises} onAdd={addExercise} onEdit={editExercise} onDelete={deleteExercise} />}
         {tab === "log" && <LogPage exercises={exercises} onAdd={addLog} />}
-        {tab === "history" && <HistoryPage logs={logs} exercises={exercises} onDelete={deleteLog} profile={profile} />}
+        {tab === "history" && <HistoryPage logs={logs} exercises={exercises} fichas={fichas} onDelete={deleteLog} profile={profile} />}
         {tab === "progress" && <ProgressPage logs={logs} exercises={exercises} />}
+        {tab === "fichas" && <FichasPage fichas={fichas} exercises={exercises} onAdd={addFicha} onEdit={editFicha} onDelete={deleteFicha} />}
 
         <nav className="bottom-nav">
           {[
-            { key:"exercises", icon:"dumbbell", label:"Exercicios" },
-            { key:"log",       icon:"plus",     label:"Registrar" },
-            { key:"history",   icon:"history",  label:"Historico" },
-            { key:"progress",  icon:"chart",    label:"Evolucao"  },
+            { key:"exercises", icon:"dumbbell",  label:"Exercicios" },
+            { key:"log",       icon:"plus",      label:"Registrar"  },
+            { key:"fichas",    icon:"clipboard", label:"Fichas"     },
+            { key:"history",   icon:"history",   label:"Historico"  },
+            { key:"progress",  icon:"chart",     label:"Evolucao"   },
           ].map(n => (
             <button key={n.key} className={"nav-item" + (tab === n.key ? " active" : "")} onClick={() => setTab(n.key)}>
               <Icon name={n.icon} size={20} />
@@ -874,7 +906,239 @@ function LogPage({ exercises, onAdd }) {
   );
 }
 
-function HistoryPage({ logs, exercises, onDelete, profile }) {
+
+const FICHA_COLORS = ["#7c6aff","#34d399","#f87171","#fbbf24","#60a5fa","#f472b6","#a78bfa","#fb923c","#38bdf8","#4ade80"];
+
+function FichasPage({ fichas, exercises, onAdd, onEdit, onDelete }) {
+  const [openId, setOpenId] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+
+  const exMap = Object.fromEntries(exercises.map(e => [e.id, e]));
+
+  return (
+    <div className="page">
+      {!showCreate && !editId && (
+        <button className="btn btn-primary" onClick={() => setShowCreate(true)}>
+          <Icon name="plus" size={18} /> Nova ficha
+        </button>
+      )}
+
+      {showCreate && (
+        <FichaForm
+          exercises={exercises}
+          onSave={(data) => { onAdd(data); setShowCreate(false); }}
+          onCancel={() => setShowCreate(false)}
+        />
+      )}
+
+      {editId && (
+        <FichaForm
+          exercises={exercises}
+          initial={fichas.find(f => f.id === editId)}
+          onSave={(data) => { onEdit(editId, data); setEditId(null); }}
+          onCancel={() => setEditId(null)}
+        />
+      )}
+
+      {!showCreate && !editId && (
+        fichas.length === 0 ? (
+          <div className="empty">
+            <Icon name="clipboard" size={40} />
+            <p>Nenhuma ficha ainda.<br />Crie sua primeira ficha de treino!</p>
+          </div>
+        ) : (
+          <div className="scroll-list">
+            {fichas.map(ficha => {
+              const isOpen = openId === ficha.id;
+              const itens = ficha.itens || [];
+              return (
+                <div key={ficha.id} className="ficha-card" style={{ borderColor: (ficha.color || "#7c6aff") + "55" }}>
+                  <div className="ficha-card-header" onClick={() => setOpenId(isOpen ? null : ficha.id)}>
+                    <div className="ficha-color-dot" style={{ background: ficha.color || "#7c6aff" }} />
+                    <div style={{ flex:1 }}>
+                      <div className="ficha-name">{ficha.name}</div>
+                      <div className="ficha-meta">{itens.length} exercicio(s){ficha.obs ? " · " + ficha.obs : ""}</div>
+                    </div>
+                    <div className="ficha-actions" onClick={e => e.stopPropagation()}>
+                      <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setEditId(ficha.id)}><Icon name="edit" size={15} /></button>
+                      <button className="btn btn-danger btn-icon btn-sm" onClick={() => setConfirmDel(ficha.id)}><Icon name="trash" size={15} /></button>
+                    </div>
+                    <span style={{ color:"var(--text3)", fontSize:20, transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", transition:"transform 0.2s ease", display:"inline-block", marginLeft:4 }}>›</span>
+                  </div>
+
+                  {isOpen && (
+                    <div className="ficha-body">
+                      {itens.length === 0 && (
+                        <p style={{ fontSize:13, color:"var(--text3)", textAlign:"center", padding:"8px 0" }}>Nenhum exercicio nesta ficha.</p>
+                      )}
+                      {itens.map((item, idx) => {
+                        const ex = exMap[item.exerciseId];
+                        return (
+                          <div key={idx} className="ficha-ex-row">
+                            <div className="ficha-ex-order">{idx + 1}</div>
+                            <div className="ficha-ex-info">
+                              <span className="ficha-ex-name">{ex?.name || "Exercicio removido"}</span>
+                              {ex?.group && <span className="ficha-ex-badge">{groupEmoji(ex.group)} {groupLabel(ex.group)}</span>}
+                              {item.obs && <span className="ficha-ex-obs">📝 {item.obs}</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )
+      )}
+
+      {confirmDel && (
+        <div className="modal-overlay" onClick={() => setConfirmDel(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <p className="modal-title">Excluir ficha?</p>
+            <p className="modal-sub">Essa acao nao pode ser desfeita.</p>
+            <button className="btn btn-danger" onClick={() => { onDelete(confirmDel); setConfirmDel(null); }}><Icon name="trash" size={16} /> Excluir</button>
+            <button className="btn btn-ghost" onClick={() => setConfirmDel(null)}>Cancelar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FichaForm({ exercises, initial, onSave, onCancel }) {
+  const [name, setName] = useState(initial?.name || "");
+  const [color, setColor] = useState(initial?.color || FICHA_COLORS[0]);
+  const [obs, setObs] = useState(initial?.obs || "");
+  const [itens, setItens] = useState(initial?.itens || []);
+  const [selGroup, setSelGroup] = useState("todos");
+  const [selEx, setSelEx] = useState("");
+  const [itemObs, setItemObs] = useState("");
+  const [dragIdx, setDragIdx] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
+
+  const usedGroups = ["todos", ...GROUPS.map(g => g.id).filter(id => exercises.some(e => e.group === id))];
+  const filteredEx = selGroup === "todos" ? exercises : exercises.filter(e => e.group === selGroup);
+
+  const addItem = () => {
+    if (!selEx) return;
+    setItens(prev => [...prev, { exerciseId: selEx, obs: itemObs.trim() }]);
+    setSelEx(""); setItemObs("");
+  };
+
+  const removeItem = (idx) => setItens(prev => prev.filter((_, i) => i !== idx));
+  const updateItemObs = (idx, val) => setItens(prev => prev.map((it, i) => i === idx ? { ...it, obs: val } : it));
+
+  const handleDragStart = (idx) => setDragIdx(idx);
+  const handleDragOver = (e, idx) => { e.preventDefault(); setDragOver(idx); };
+  const handleDrop = (idx) => {
+    if (dragIdx === null || dragIdx === idx) { setDragIdx(null); setDragOver(null); return; }
+    const updated = [...itens];
+    const [moved] = updated.splice(dragIdx, 1);
+    updated.splice(idx, 0, moved);
+    setItens(updated);
+    setDragIdx(null); setDragOver(null);
+  };
+
+  const exMap = Object.fromEntries(exercises.map(e => [e.id, e]));
+
+  const save = () => {
+    if (!name.trim()) return;
+    onSave({ name: name.trim(), color, obs: obs.trim(), itens });
+  };
+
+  return (
+    <div className="card">
+      <p className="section-title">{initial ? "Editar ficha" : "Nova ficha"}</p>
+
+      <div className="field">
+        <label>Nome da ficha</label>
+        <input placeholder="ex: Upper, Push, Treino A..." value={name} onChange={e => setName(e.target.value)} autoFocus />
+      </div>
+
+      <div className="field">
+        <label>Cor</label>
+        <div className="color-picker">
+          {FICHA_COLORS.map(c => (
+            <button key={c} className={"color-dot-btn" + (color === c ? " selected" : "")}
+              style={{ background: c }} onClick={() => setColor(c)} />
+          ))}
+        </div>
+      </div>
+
+      <div className="field">
+        <label>Observacao geral (opcional)</label>
+        <input placeholder="ex: Foco em hipertrofia, 60s descanso..." value={obs} onChange={e => setObs(e.target.value)} />
+      </div>
+
+      <div className="divider" />
+      <p className="section-title">Exercicios da ficha</p>
+
+      {/* Lista de exercícios adicionados */}
+      {itens.length > 0 && (
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {itens.map((item, idx) => {
+            const ex = exMap[item.exerciseId];
+            return (
+              <div key={idx}
+                className="ficha-ex-row"
+                draggable
+                onDragStart={() => handleDragStart(idx)}
+                onDragOver={e => handleDragOver(e, idx)}
+                onDrop={() => handleDrop(idx)}
+                style={{ opacity: dragOver === idx ? 0.5 : 1, cursor:"grab" }}
+              >
+                <span className="drag-handle">⠿</span>
+                <div className="ficha-ex-order">{idx + 1}</div>
+                <div className="ficha-ex-info" style={{ gap:5 }}>
+                  <span className="ficha-ex-name">{ex?.name || "?"}</span>
+                  <input
+                    placeholder="Observacao (opcional)"
+                    value={item.obs}
+                    onChange={e => updateItemObs(idx, e.target.value)}
+                    style={{ fontSize:12, padding:"5px 8px" }}
+                  />
+                </div>
+                <button className="btn btn-danger btn-icon btn-sm" onClick={() => removeItem(idx)}><Icon name="x" size={14} /></button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Adicionar exercício */}
+      <div style={{ background:"var(--surface2)", borderRadius:"var(--radius-sm)", padding:12, display:"flex", flexDirection:"column", gap:10 }}>
+        <p className="section-title">Adicionar exercicio</p>
+        <div className="group-tabs" style={{ paddingBottom:0 }}>
+          {usedGroups.map(id => (
+            <button key={id} className={"group-tab" + (selGroup === id ? " active" : "")} onClick={() => { setSelGroup(id); setSelEx(""); }}>
+              {id === "todos" ? "Todos" : groupEmoji(id) + " " + groupLabel(id)}
+            </button>
+          ))}
+        </div>
+        <select value={selEx} onChange={e => setSelEx(e.target.value)}>
+          <option value="">Selecione o exercicio</option>
+          {filteredEx.map(ex => <option key={ex.id} value={ex.id}>{ex.name}</option>)}
+        </select>
+        <input placeholder="Observacao do exercicio (opcional)" value={itemObs} onChange={e => setItemObs(e.target.value)} />
+        <button className="btn btn-ghost" onClick={addItem} disabled={!selEx} style={!selEx ? { opacity:0.45 } : {}}>
+          <Icon name="plus" size={16} /> Adicionar
+        </button>
+      </div>
+
+      <div className="divider" />
+      <button className="btn btn-primary" onClick={save} disabled={!name.trim()} style={!name.trim() ? { opacity:0.45 } : {}}>
+        <Icon name="check" size={16} /> {initial ? "Salvar alteracoes" : "Criar ficha"}
+      </button>
+      <button className="btn btn-ghost" onClick={onCancel}>Cancelar</button>
+    </div>
+  );
+}
+
+function HistoryPage({ logs, exercises, fichas, onDelete, profile }) {
   const [confirm, setConfirm] = useState(null);
   const [openDay, setOpenDay] = useState(null);
   const exMap = Object.fromEntries(exercises.map(e => [e.id, { name: e.name, group: e.group }]));
@@ -883,7 +1147,7 @@ function HistoryPage({ logs, exercises, onDelete, profile }) {
     const backup = {
       version: 1,
       exportedAt: now(),
-      profiles: [{ profile, exercises, logs }],
+      profiles: [{ profile, exercises, logs, fichas }],
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
