@@ -668,7 +668,7 @@ function ExercisesPage({ exercises, onAdd, onEdit, onDelete }) {
   );
 }
 
-function SetBlock({ label, color, emoji, value, onChange, valueR, onChangeR, valueL, onChangeL, sets, onSetsChange, reps, onRepsChange, repsR, onRepsRChange, repsL, onRepsLChange }) {
+function SetBlock({ label, color, emoji, value, onChange, valueR, onChangeR, valueL, onChangeL, sets, onSetsChange, reps, onRepsChange, repsR, onRepsRChange, repsL, onRepsLChange, obs, onObsChange }) {
   const isUnilateral = valueR !== undefined;
   return (
     <div className="set-block" style={{ "--set-color": color }}>
@@ -722,6 +722,10 @@ function SetBlock({ label, color, emoji, value, onChange, valueR, onChangeR, val
             </div>
           )}
         </div>
+        <div className="field">
+          <label>Observacao (opcional)</label>
+          <input placeholder="ex: pegada neutra, pausa no fundo..." value={obs} onChange={e => onObsChange(e.target.value)} />
+        </div>
       </div>
     </div>
   );
@@ -766,6 +770,9 @@ function LogPage({ exercises, onAdd }) {
   const [topRepsR, setTopRepsR] = useState("12");
   const [topRepsL, setTopRepsL] = useState("12");
 
+  const [feederObs, setFeederObs] = useState("");
+  const [workObs, setWorkObs]     = useState("");
+  const [topObs, setTopObs]       = useState("");
   const [note, setNote] = useState("");
   const [done, setDone] = useState(false);
 
@@ -788,6 +795,7 @@ function LogPage({ exercises, onAdd }) {
     setFeederSets("3"); setFeederReps("12"); setFeederRepsR("12"); setFeederRepsL("12");
     setWorkSets("3");   setWorkReps("12");   setWorkRepsR("12");   setWorkRepsL("12");
     setTopSets("1");    setTopReps("12");    setTopRepsR("12");    setTopRepsL("12");
+    setFeederObs(""); setWorkObs(""); setTopObs("");
     setNote(""); setExId("");
   };
 
@@ -802,9 +810,9 @@ function LogPage({ exercises, onAdd }) {
         ...base,
         load: parseF(workLoad) ?? parseF(topLoad) ?? parseF(feederLoad),
         sets: parseInt(workSets || feederSets), reps: parseInt(workReps || feederReps),
-        feederLoad: parseF(feederLoad), feederSets: parseInt(feederSets), feederReps: parseInt(feederReps),
-        workLoad:   parseF(workLoad),   workSets:   parseInt(workSets),   workReps:   parseInt(workReps),
-        topLoad:    parseF(topLoad),    topSets:    parseInt(topSets),    topReps:    parseInt(topReps),
+        feederLoad: parseF(feederLoad), feederSets: parseInt(feederSets), feederReps: parseInt(feederReps), feederObs: feederObs.trim() || null,
+        workLoad:   parseF(workLoad),   workSets:   parseInt(workSets),   workReps:   parseInt(workReps),   workObs:   workObs.trim()   || null,
+        topLoad:    parseF(topLoad),    topSets:    parseInt(topSets),    topReps:    parseInt(topReps),    topObs:    topObs.trim()    || null,
       });
     } else if (mode === "unilateral") {
       onAdd({
@@ -814,9 +822,9 @@ function LogPage({ exercises, onAdd }) {
         reps: parseInt(workRepsR || feederRepsR), repsR: parseInt(workRepsR || feederRepsR), repsL: parseInt(workRepsL || feederRepsL),
         loadR: parseF(workLoadR) ?? parseF(topLoadR) ?? parseF(feederLoadR),
         loadL: parseF(workLoadL) ?? parseF(topLoadL) ?? parseF(feederLoadL),
-        feederLoadR: parseF(feederLoadR), feederLoadL: parseF(feederLoadL), feederSets: parseInt(feederSets), feederRepsR: parseInt(feederRepsR), feederRepsL: parseInt(feederRepsL),
-        workLoadR:   parseF(workLoadR),   workLoadL:   parseF(workLoadL),   workSets:   parseInt(workSets),   workRepsR:   parseInt(workRepsR),   workRepsL:   parseInt(workRepsL),
-        topLoadR:    parseF(topLoadR),    topLoadL:    parseF(topLoadL),    topSets:    parseInt(topSets),    topRepsR:    parseInt(topRepsR),    topRepsL:    parseInt(topRepsL),
+        feederLoadR: parseF(feederLoadR), feederLoadL: parseF(feederLoadL), feederSets: parseInt(feederSets), feederRepsR: parseInt(feederRepsR), feederRepsL: parseInt(feederRepsL), feederObs: feederObs.trim() || null,
+        workLoadR:   parseF(workLoadR),   workLoadL:   parseF(workLoadL),   workSets:   parseInt(workSets),   workRepsR:   parseInt(workRepsR),   workRepsL:   parseInt(workRepsL),   workObs:   workObs.trim()   || null,
+        topLoadR:    parseF(topLoadR),    topLoadL:    parseF(topLoadL),    topSets:    parseInt(topSets),    topRepsR:    parseInt(topRepsR),    topRepsL:    parseInt(topRepsL),    topObs:    topObs.trim()    || null,
       });
     } else {
       onAdd({
@@ -866,18 +874,21 @@ function LogPage({ exercises, onAdd }) {
             value={feederLoad} onChange={setFeederLoad}
             sets={feederSets} onSetsChange={setFeederSets}
             reps={feederReps} onRepsChange={setFeederReps}
+            obs={feederObs} onObsChange={setFeederObs}
           />
           <SetBlock
             label="Work Set" emoji="🔶" color="#fbbf24"
             value={workLoad} onChange={setWorkLoad}
             sets={workSets} onSetsChange={setWorkSets}
             reps={workReps} onRepsChange={setWorkReps}
+            obs={workObs} onObsChange={setWorkObs}
           />
           <SetBlock
             label="Top Set" emoji="🔴" color="#f87171"
             value={topLoad} onChange={setTopLoad}
             sets={topSets} onSetsChange={setTopSets}
             reps={topReps} onRepsChange={setTopReps}
+            obs={topObs} onObsChange={setTopObs}
           />
         </>)}
 
@@ -889,6 +900,7 @@ function LogPage({ exercises, onAdd }) {
             sets={feederSets} onSetsChange={setFeederSets}
             repsR={feederRepsR} onRepsRChange={setFeederRepsR}
             repsL={feederRepsL} onRepsLChange={setFeederRepsL}
+            obs={feederObs} onObsChange={setFeederObs}
           />
           <SetBlock
             label="Work Set" emoji="🔶" color="#fbbf24"
@@ -897,6 +909,7 @@ function LogPage({ exercises, onAdd }) {
             sets={workSets} onSetsChange={setWorkSets}
             repsR={workRepsR} onRepsRChange={setWorkRepsR}
             repsL={workRepsL} onRepsLChange={setWorkRepsL}
+            obs={workObs} onObsChange={setWorkObs}
           />
           <SetBlock
             label="Top Set" emoji="🔴" color="#f87171"
@@ -905,6 +918,7 @@ function LogPage({ exercises, onAdd }) {
             sets={topSets} onSetsChange={setTopSets}
             repsR={topRepsR} onRepsRChange={setTopRepsR}
             repsL={topRepsL} onRepsLChange={setTopRepsL}
+            obs={topObs} onObsChange={setTopObs}
           />
         </>)}
 
@@ -1272,6 +1286,13 @@ function HistoryPage({ logs, exercises, fichas, onDelete, profile }) {
                                       <span className="log-badge">{log.reps} reps</span>
                                     </div>
                                   )}
+                                  {(log.feederObs || log.workObs || log.topObs) && (
+                                    <div style={{ display:"flex", flexDirection:"column", gap:2, marginTop:2 }}>
+                                      {log.feederObs && <span style={{ fontSize:11, color:"var(--text2)" }}>🔹 {log.feederObs}</span>}
+                                      {log.workObs   && <span style={{ fontSize:11, color:"var(--text2)" }}>🔶 {log.workObs}</span>}
+                                      {log.topObs    && <span style={{ fontSize:11, color:"var(--text2)" }}>🔴 {log.topObs}</span>}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                               {log.mode === "unilateral" && (
@@ -1291,6 +1312,13 @@ function HistoryPage({ logs, exercises, fichas, onDelete, profile }) {
                                       {log.loadL != null && <span className="log-badge green">E: {log.loadL} kg</span>}
                                       <span className="log-badge">{log.sets} series</span>
                                       <span className="log-badge">{log.reps} reps</span>
+                                    </div>
+                                  )}
+                                  {(log.feederObs || log.workObs || log.topObs) && (
+                                    <div style={{ display:"flex", flexDirection:"column", gap:2, marginTop:2 }}>
+                                      {log.feederObs && <span style={{ fontSize:11, color:"var(--text2)" }}>🔹 {log.feederObs}</span>}
+                                      {log.workObs   && <span style={{ fontSize:11, color:"var(--text2)" }}>🔶 {log.workObs}</span>}
+                                      {log.topObs    && <span style={{ fontSize:11, color:"var(--text2)" }}>🔴 {log.topObs}</span>}
                                     </div>
                                   )}
                                 </div>
