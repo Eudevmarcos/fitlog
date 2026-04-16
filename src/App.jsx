@@ -700,11 +700,11 @@ function SetBlock({ label, color, emoji, value, onChange, valueR, onChangeR, val
             <div className="grid2">
               <div className="field">
                 <label>Reps Direito</label>
-                <input type="number" placeholder="12" value={repsR} onChange={e => onRepsRChange(e.target.value)} inputMode="numeric" />
+                <input type="number" placeholder="0" value={repsR} onChange={e => onRepsRChange(e.target.value)} inputMode="numeric" />
               </div>
               <div className="field">
                 <label>Reps Esquerdo</label>
-                <input type="number" placeholder="12" value={repsL} onChange={e => onRepsLChange(e.target.value)} inputMode="numeric" />
+                <input type="number" placeholder="0" value={repsL} onChange={e => onRepsLChange(e.target.value)} inputMode="numeric" />
               </div>
             </div>
           </>
@@ -713,12 +713,12 @@ function SetBlock({ label, color, emoji, value, onChange, valueR, onChangeR, val
         <div className={isUnilateral ? "" : "grid2"}>
           <div className="field">
             <label>Series</label>
-            <input type="number" placeholder="3" value={sets} onChange={e => onSetsChange(e.target.value)} inputMode="numeric" />
+            <input type="number" placeholder="0" value={sets} onChange={e => onSetsChange(e.target.value)} inputMode="numeric" />
           </div>
           {!isUnilateral && (
             <div className="field">
               <label>Repeticoes</label>
-              <input type="number" placeholder="12" value={reps} onChange={e => onRepsChange(e.target.value)} inputMode="numeric" />
+              <input type="number" placeholder="0" value={reps} onChange={e => onRepsChange(e.target.value)} inputMode="numeric" />
             </div>
           )}
         </div>
@@ -755,20 +755,20 @@ function LogPage({ exercises, onAdd }) {
   const [topMins, setTopMins]   = useState("");
 
   // Feeder Set series/reps
-  const [feederSets, setFeederSets] = useState("3");
-  const [feederReps, setFeederReps] = useState("12");
-  const [feederRepsR, setFeederRepsR] = useState("12");
-  const [feederRepsL, setFeederRepsL] = useState("12");
+  const [feederSets, setFeederSets] = useState("");
+  const [feederReps, setFeederReps] = useState("");
+  const [feederRepsR, setFeederRepsR] = useState("");
+  const [feederRepsL, setFeederRepsL] = useState("");
   // Work Set series/reps
-  const [workSets, setWorkSets] = useState("3");
-  const [workReps, setWorkReps] = useState("12");
-  const [workRepsR, setWorkRepsR] = useState("12");
-  const [workRepsL, setWorkRepsL] = useState("12");
+  const [workSets, setWorkSets] = useState("");
+  const [workReps, setWorkReps] = useState("");
+  const [workRepsR, setWorkRepsR] = useState("");
+  const [workRepsL, setWorkRepsL] = useState("");
   // Top Set series/reps
-  const [topSets, setTopSets] = useState("1");
-  const [topReps, setTopReps] = useState("12");
-  const [topRepsR, setTopRepsR] = useState("12");
-  const [topRepsL, setTopRepsL] = useState("12");
+  const [topSets, setTopSets] = useState("");
+  const [topReps, setTopReps] = useState("");
+  const [topRepsR, setTopRepsR] = useState("");
+  const [topRepsL, setTopRepsL] = useState("");
 
   const [feederObs, setFeederObs] = useState("");
   const [workObs, setWorkObs]     = useState("");
@@ -792,9 +792,9 @@ function LogPage({ exercises, onAdd }) {
     setFeederLoad(""); setFeederLoadR(""); setFeederLoadL(""); setFeederMins("");
     setWorkLoad("");   setWorkLoadR("");   setWorkLoadL("");   setWorkMins("");
     setTopLoad("");    setTopLoadR("");    setTopLoadL("");    setTopMins("");
-    setFeederSets("3"); setFeederReps("12"); setFeederRepsR("12"); setFeederRepsL("12");
-    setWorkSets("3");   setWorkReps("12");   setWorkRepsR("12");   setWorkRepsL("12");
-    setTopSets("1");    setTopReps("12");    setTopRepsR("12");    setTopRepsL("12");
+    setFeederSets(""); setFeederReps(""); setFeederRepsR(""); setFeederRepsL("");
+    setWorkSets("");   setWorkReps("");   setWorkRepsR("");   setWorkRepsL("");
+    setTopSets("");    setTopReps("");    setTopRepsR("");    setTopRepsL("");
     setFeederObs(""); setWorkObs(""); setTopObs("");
     setNote(""); setExId("");
   };
